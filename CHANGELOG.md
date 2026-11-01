@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.2
+
+Changed
+- **Five sources are now read in full** (supplied by the app's author): Riegel 1981, Uth 2004 (with its 2005
+  erratum), Tanaka 2001, Poole 2016 and the INTERLIVE wearable VO2max meta-analysis (Molina-Garcia 2022). Their
+  entries in Sources and credits now say "full text" and quote what the papers actually report.
+- Critical-speed window shortened from 2-40 to 2-30 minutes: Poole et al. say exercise above critical power lasts
+  "perhaps 30 minutes" at most, so 40 went beyond the source.
+
+Corrected (claims the full texts did not support)
+- Riegel's 1981 paper does not give k = 1.06 for runners. It reports 1.077 (men's world records), 1.083 (women's)
+  and 1.05-1.06 for men over 40. 1.06 is widely used and credited to his 1977 Runner's World article, which has not
+  been read. The app still uses 1.06 and your own fitted exponent, and now says exactly this.
+- The "3.5 to 230 minutes" range is not Riegel's: his running data covered 1.5-42.2 km (3.5-129 min men, 3.9-147 min
+  women). 230 minutes is now labelled as the app's own rule.
+- The heart-rate-ratio VO2max range (+/-4.7) is Uth's error with age-predicted HRmax; with lab-measured HRmax it
+  was 2.7. The card now says why the larger one is used, and quotes the INTERLIVE numbers (resting-data wearables
+  read about 2.2 ml/kg/min high, individual differences about -13 to +17).
+
 ## 0.4.1
 
 Changed

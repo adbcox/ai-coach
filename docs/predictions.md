@@ -23,8 +23,9 @@ Rules, all visible on the page:
 - You can **leave out** any effort and watch the prediction change.
 - Efforts are taken from the **last 3, 6, 12 or 24 months** (your choice); the fastest per
   distance in that period is the one used.
-- An effort is only used as a source if it lasted **3.5 to 230 minutes**, the range
-  Riegel's formula was fitted to.
+- An effort is only used as a source if it lasted **3.5 to 230 minutes**. Riegel's own running data covered 1.5 to 42.2 km
+  (3.5 to 129 minutes for men's records, 3.9 to 147 for women's); the app allows up to 230 minutes so slower recreational
+  marathons can count, and flags anything outside that window as an extrapolation.
 
 ## 2. The methods
 
@@ -32,7 +33,7 @@ Rules, all visible on the page:
 | --- | --- | --- |
 | Riegel, k = 1.06 | T2 = T1 x (D2 / D1)^1.06, from the effort nearest in distance | Riegel (1981) |
 | Your fitted exponent | Least-squares line through ln(time) versus ln(distance) of your efforts; slope is your personal k. Needs 3 or more distances; gives a 95% prediction interval | Riegel (1981), method |
-| Critical speed | distance = CS x time + D' fitted to efforts of 2 to 40 minutes; time = (D - D') / CS. Counted only when the predicted time is inside 2 to 40 minutes | Poole et al. (2016); the 2 to 40 minute window is this app's rule |
+| Critical speed | distance = CS x time + D' fitted to efforts of 2 to 30 minutes; time = (D - D') / CS. Counted only when the predicted time is inside 2 to 30 minutes | Poole et al. (2016); the 2 to 40 minute window is this app's rule |
 | VDOT | Daniels/Gilbert oxygen-cost and %VO2max-versus-duration equations give a VDOT; the equations are then solved for the target distance | Daniels & Gilbert (1979) |
 | Conservative scenario, k = 1.15 | Riegel with k = 1.15 | Fetch Everyone analysis (not peer reviewed) |
 

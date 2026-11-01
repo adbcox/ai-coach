@@ -58,9 +58,11 @@ def build(conn: sqlite3.Connection, now: datetime | None = None) -> dict[str, An
                       f"HRmax = {hrmax} bpm ({'your setting' if custom else 'estimated from your own peaks'}).",
                       f"HRrest = {hrrest:.0f} bpm (median of {len(rest_days)} days of resting heart rate in the last 30 days).",
                       f"VO2max = 15.3 x {hrmax} / {hrrest:.0f} = {v:.1f} ml/kg/min",
-                      f"Range shown = +/- {UTH_SEE} (the standard error Uth et al. reported when HRmax was age-predicted)."],
-            "warnings": ["The 15.3 constant came from 10 well-trained men. Resting-heart-rate based estimates tend to "
-                         "read high (INTERLIVE meta-analysis), so treat this as an upper-leaning estimate."]})
+                      f"Range shown = +/- {UTH_SEE} (the larger error Uth et al. reported, 7.8%, when HRmax was age-predicted; "
+                      "with a lab-measured HRmax they reported 2.7, but a watch-derived HRmax is not lab-measured)."],
+            "warnings": ["The 15.3 constant came from 10 well-trained men aged 21 to 51; Uth et al. say other groups need direct validation. "
+                         "In the INTERLIVE meta-analysis, wearable estimates built on resting data read high by 2.2 ml/kg/min on average, "
+                         "with individual differences of about -13 to +17, so treat this as an upper-leaning estimate."]})
     else:
         methods.append({"id": "hr_ratio", "name": "Heart rate ratio (resting vs max)", "value": None, "status": "not_enough_data",
                         "citation": "uth2004", "warnings": [],

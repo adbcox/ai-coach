@@ -18,9 +18,9 @@ from .efforts import DISTANCES, HALF, MARATHON, cost_ratio, minetti_cost, run_ki
 
 TARGETS = [("5k", "5K", 5000.0), ("10k", "10K", 10000.0), ("half", "Half marathon", HALF),
            ("marathon", "Marathon", MARATHON)]
-RIEGEL_MIN_S = 3.5 * 60    # Riegel (1981): the formula was fitted to efforts of 3.5 to 230 minutes
-RIEGEL_MAX_S = 230 * 60
-CS_MIN_S, CS_MAX_S = 2 * 60, 40 * 60  # app heuristic for the critical-speed model (see references: poole2016)
+RIEGEL_MIN_S = 3.5 * 60    # Riegel 1981 Table 1: running records 1.5-42.2 km = 3.5-129 min (men), 3.9-147 min (women)
+RIEGEL_MAX_S = 230 * 60    # app rule: wider than the paper's record times so slower recreational marathons count
+CS_MIN_S, CS_MAX_S = 2 * 60, 30 * 60  # Poole 2016: CP fitted from 2-15 min efforts; above-CP exercise lasts 'perhaps 30 minutes' at most
 MAX_SPEED = 7.0
 T975 = {1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262,
         10: 2.228, 12: 2.179, 15: 2.131, 20: 2.086, 30: 2.042}
@@ -279,8 +279,8 @@ def annotate_range(m: dict[str, Any]) -> None:
     t = m.get("time_s")
     if t is not None and m["status"] == "ok" and not RIEGEL_MIN_S <= t <= RIEGEL_MAX_S and m["id"] != "critical_speed":
         m["status"] = "extrapolated"
-        m["warnings"].append(f"The predicted time ({fmt_time(t)}) is outside the 3.5 to 230 minute range Riegel "
-                             "originally analysed; treat it as an extrapolation.")
+        m["warnings"].append(f"The predicted time ({fmt_time(t)}) is outside the 3.5 to 230 minute window the app "
+                             "allows (Riegel's own running data covered 3.5 to 147 minutes); treat it as an extrapolation.")
 
 
 def predict_target(key: str, label: str, target: float, efforts: list[dict[str, Any]]) -> dict[str, Any]:

@@ -44,14 +44,18 @@ REFERENCES: list[dict[str, Any]] = [
         "title": "Athletic records and human endurance",
         "venue": "American Scientist 69(3):285-290 (an earlier version, 'Time Predicting', appeared in Runner's World in 1977)",
         "doi": None, "url": "https://en.wikipedia.org/wiki/Peter_Riegel",
-        "verified": "abstract",
-        "verified_note": "Abstract and secondary summaries only. The commonly quoted form T2 = T1 x (D2/D1)^1.06 and the 3.5 to 230 minute "
-                         "range come from those summaries, not the paper itself.",
-        "used_for": ["Riegel power law (k = 1.06)", "Your fitted exponent", "Source-effort duration range (3.5 to 230 minutes)"],
+        "verified": "full_text",
+        "verified_note": "Full text read (scanned PDF supplied by the app's author). Table 1 gives t = a x^b fitted to world records up to "
+                         "1 Nov 1979. Running, men: a = 2.299, b = 1.07732 (1.5 to 42.2 km, 3.5 to 129 min); women: b = 1.08283 (3.9 to 147 min); "
+                         "men over 40, 50, 60, 70: b = 1.0535, 1.0537, 1.0560, 1.0637. The text calls the world-class value 1.08 and the "
+                         "older-men value 1.05 to 1.06. The commonly quoted k = 1.06 is NOT stated for general runners in this paper; it "
+                         "is usually credited to Riegel's 1977 Runner's World article (reference 1 in the paper), which has not been read.",
+        "used_for": ["Riegel power law (k = 1.06)", "Your fitted exponent", "Source-effort distance range (1.5 to 42.2 km)"],
         "how_used": "Time over a new distance = known time x (new distance / known distance)^k. The app uses k = 1.06 as the "
-                    "textbook value and also fits k to the athlete's own efforts.",
-        "limits": "Fitted to world-record-type data; the author's range was about 3.5 to 230 minutes. Many recreational runners "
-                  "slow down more than k = 1.06 implies over long distances.",
+                    "widely used value and also fits k to the athlete's own efforts. The 3.5 to 230 minute window is the app's own rule.",
+        "limits": "Fitted to world records (men and women), not to individual recreational runners; the paper's own exponents "
+                  "were 1.077 (men) and 1.083 (women), higher than 1.06. The 1981 data stop at 1 Nov 1979. The author notes records "
+                  "are ephemeral and that the power function is a compromise between accuracy and simplicity, not a theory of locomotion.",
     },
     {
         "id": "daniels1979", "short": "Daniels & Gilbert 1979", "kind": "book",
@@ -74,23 +78,29 @@ REFERENCES: list[dict[str, Any]] = [
         "title": "Critical power: an important fatigue threshold in exercise physiology",
         "venue": "Medicine & Science in Sports & Exercise 48(11):2320-2334",
         "doi": "10.1249/MSS.0000000000000939", "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5070974",
-        "verified": "abstract",
-        "verified_note": "Abstract and search summaries read; full text (free on PubMed Central) not yet checked.",
+        "verified": "full_text",
+        "verified_note": "Full text read (author manuscript). The paper says exercise above critical power can be sustained for 'perhaps "
+                         "30 minutes' at most, and describes CP determination from efforts lasting about 2 to 15 minutes. Written mostly "
+                         "about power (cycling, knee-extension); critical speed for running follows the same hyperbolic form.",
         "used_for": ["Critical speed prediction"],
-        "how_used": "Two-parameter model: distance = CS x time + D'. Fitted by least squares to the athlete's 2 to 40 minute efforts.",
-        "limits": "The 2 to 40 minute window in which the app counts this method is the app's own conservative rule of thumb, "
-                  "not a limit stated in the paper.",
+        "how_used": "Two-parameter model: distance = CS x time + D'. Fitted by least squares to the athlete's 2 to 30 minute efforts.",
+        "limits": "The paper's 'perhaps 30 minutes' is the upper end for exercise above CP, so the app stops at 30 minutes (earlier "
+                  "versions used 40, which was beyond what the source supports). The exact 2 to 30 window is the app's own choice.",
     },
     {
         "id": "uth2004", "short": "Uth et al. 2004", "kind": "paper",
         "authors": "Uth N, Sorensen H, Overgaard K, Pedersen PK", "year": 2004,
         "title": "Estimation of VO2max from the ratio between HRmax and HRrest - the Heart Rate Ratio Method",
-        "venue": "European Journal of Applied Physiology (2004)", "doi": None,
+        "venue": "European Journal of Applied Physiology 91:111-115", "doi": "10.1007/s00421-003-0988-y",
         "url": "https://www.springermedizin.de/estimation-of-vo2max-from-the-ratio-between-hrmax-and-hrrest-the/8478242",
-        "verified": "abstract",
-        "verified_note": "Abstract and search summaries read. Volume and page numbers are not given here because they were not verified.",
+        "verified": "full_text",
+        "verified_note": "Full text read, including the 2005 erratum (Eur J Appl Physiol 2004 online 17 Nov; it corrects only the Appendix "
+                         "derivation, not the results). 46 well-trained men aged 21 to 51; factor 15.3 (SD 0.7) from a subgroup of 10; "
+                         "the other 36: SEE 2.7 ml/kg/min (4.5%) with measured HRmax, 4.7 (7.8%) with age-predicted HRmax. Resting VO2 "
+                         "was assumed to be 3.4 ml/kg/min.",
         "used_for": ["Heart rate ratio VO2max estimate"],
-        "how_used": "VO2max (ml/kg/min) = 15.3 x HRmax / HRrest. The range shown uses the reported standard error of 4.7 ml/kg/min.",
+        "how_used": "VO2max (ml/kg/min) = 15.3 x HRmax / HRrest. The range shown uses 4.7 ml/kg/min, the larger of the two reported errors "
+                    "(age-predicted HRmax); with a lab-measured HRmax the paper reports 2.7.",
         "limits": "The constant came from a subgroup of 10 well-trained men; the authors say other groups need direct validation. "
                   "The 4.7 error (about 7.8%) was with age-predicted HRmax.",
     },
@@ -99,12 +109,16 @@ REFERENCES: list[dict[str, Any]] = [
         "authors": "Molina-Garcia P, et al. (INTERLIVE Network)", "year": 2022,
         "title": "Validity of estimating the maximal oxygen consumption by consumer wearables: a systematic review with "
                  "meta-analysis and expert statement of the INTERLIVE Network",
-        "venue": "Sports Medicine (2022)", "doi": None, "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9213394/",
-        "verified": "abstract",
-        "verified_note": "Abstract and search summaries read; full text not yet checked.",
+        "venue": "Sports Medicine 52:1577-1597", "doi": "10.1007/s40279-021-01639-y", "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC9213394/",
+        "verified": "full_text",
+        "verified_note": "Full text read. 14 validation studies, 403 participants. Wearables using resting-condition data: bias +2.17 "
+                         "ml/kg/min, limits of agreement -13.07 to +17.41. Exercise-based algorithms: bias -0.09, limits -9.92 to +9.74. "
+                         "Several included studies used Garmin devices.",
         "used_for": ["Cautions on VO2max estimates (resting-data methods tend to read high; individual error stays large)"],
         "how_used": "Not a formula. It is why the app shows several VO2max methods with ranges and flags the resting-heart-rate method.",
-        "limits": "A review of consumer wearables, not of the specific equations used here.",
+        "limits": "A review of consumer wearables, not of the specific equations used here. The heart-rate-ratio method is resting-based, "
+                  "so expect a high bias of about 2 ml/kg/min and an individual error of roughly +/-15; a watch's exercise-based value is "
+                  "the better number when you have it.",
     },
     {
         "id": "tanaka2001", "short": "Tanaka et al. 2001", "kind": "paper",
@@ -112,9 +126,9 @@ REFERENCES: list[dict[str, Any]] = [
         "title": "Age-predicted maximal heart rate revisited",
         "venue": "Journal of the American College of Cardiology 37(1):153-156", "doi": None,
         "url": "https://pubmed.ncbi.nlm.nih.gov/11153730/",
-        "verified": "abstract",
-        "verified_note": "PubMed abstract read via search summaries (equation 208 - 0.7 x age; strong negative correlation of HRmax with age, "
-                         "r = -0.90). Full text not read.",
+        "verified": "full_text",
+        "verified_note": "Full text read. Meta-analysis of 351 studies (492 groups, 18,712 subjects): HRmax = 208 - 0.7 x age (r = -0.90); "
+                         "a lab study of 514 healthy adults gave 209 - 0.7 x age. Scatter around the line is about 10 beats/min (SD).",
         "used_for": ["Age-based max heart rate comparison"],
         "how_used": "HRmax = 208 - 0.7 x age, shown beside your own measured peaks as a sanity check, never used as the estimate.",
         "limits": "A population equation: individual error is large (see Kasiak et al. 2023).",

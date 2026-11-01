@@ -17,9 +17,9 @@ def test_every_cited_id_exists_and_is_complete():
 
 
 def test_no_unverified_publication_details_are_invented():
-    # details we could not verify are left out rather than guessed
+    # details are only filled in once read from the paper itself (Uth 2004: header of the supplied PDF)
     uth = next(r for r in references.all_references() if r["id"] == "uth2004")
-    assert uth["doi"] is None and "91" not in uth["venue"]
+    assert uth["verified"] == "full_text" and uth["doi"] == "10.1007/s00421-003-0988-y" and "91:111" in uth["venue"]
     assert next(r for r in references.all_references() if r["id"] == "minetti2002")["verified"] == "full_text"
 
 
