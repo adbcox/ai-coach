@@ -87,3 +87,23 @@ def test_rate_limit_gives_up():
     with pytest.raises(GarminError) as e:
         c.get_json("/anything")
     assert e.value.status == 429
+
+
+def test_diagnostics_has_structure_but_no_personal_values(authed, fake):
+    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
+    run_sync(authed)
+    assert authed.get("/api/diagnostics/shapes").status_code == 200
+    text = authed.get("/api/diagnostics/shapes").text
+    report = __import__("json").loads(text)
+    assert report["activities"]["count"] == 2
+    assert "$.activityId" in report["activity_list_item"]["fields"]
+    assert report["activity_list_item"]["fields"]["$.activityType.typeKey"]["values"]
+    assert report["fit_samples"]["fill_rate"]["lat"] == 1.0
+    assert "daily_summaries" in report["health"]
+    # personal values must not leak
+    for secret in ("Morning Run", "49.28", "-123.12", API_KEY, "2026-10-30"):
+        assert secret not in text, secret
+
+
+def test_diagnostics_requires_login(client):
+    assert client.get("/api/diagnostics/shapes").status_code == 401

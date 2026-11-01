@@ -111,6 +111,14 @@ export default function Settings() {
         </p>
       )}
 
+      {status?.stored && status.stored.activities > 0 && (
+        <p className="muted">
+          Having problems or want help improving the app? Download a{" "}
+          <a href="/api/diagnostics/shapes" download>data-shapes file</a>: field names, types and
+          numeric min/max ranges, with no names, places, GPS coordinates or dates, and share it.
+        </p>
+      )}
+
       {last && (
         <p className="muted">
           {last.status === "running" ? "Sync in progress" : "Last sync"}: {last.status === "running" ? "" : last.status}

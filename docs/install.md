@@ -129,3 +129,12 @@ reports an auth error and you paste a new key.
   `AEC_SECURE_COOKIES=true`, ideally behind a VPN. It is single-user with a
   built-in login and a basic brute-force throttle, and it is
   [vibe-coded](../README.md#disclaimer-vibe-coded-use-at-your-own-risk).
+
+## Helping improve the app (data shapes)
+
+Settings has a **data-shapes** download: field names, types, numeric
+min/max ranges and fill rates for what Garmin returned. It deliberately
+excludes names, places, GPS coordinates, dates and free text, but numeric
+ranges (for example heart rate or distance min/max) are included, so look
+at the file before sharing it. It is how the dashboard's parsing gets
+fitted to real responses.

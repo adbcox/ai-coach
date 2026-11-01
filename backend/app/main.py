@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import __version__, db, security
+from . import __version__, db, diagnostics, security
 from .config import Settings
 from .crypto import SecretBox
 from .garmin.client import GarminError
@@ -197,6 +197,13 @@ def create_app(
         if not manager.start_background(full=full):
             raise HTTPException(409, "A sync is already running.")
         return {"started": True}
+
+    @app.get("/api/diagnostics/shapes")
+    def diagnostics_shapes(_=Depends(current_user), conn=Depends(get_conn)) -> Response:
+        import json as _json
+        body = _json.dumps(diagnostics.build(conn), indent=1)
+        return Response(body, media_type="application/json", headers={
+            "Content-Disposition": 'attachment; filename="data-shapes.json"'})
 
     @app.get("/api/activities")
     def activities(limit: int = 50, offset: int = 0, _=Depends(current_user),
