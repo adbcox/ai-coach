@@ -10,6 +10,7 @@ The whole app works with no AI until v0.5.
 | v0.4 | 3 — Recovery | Sleep, HRV, Body Battery and stress in the dashboard. |
 | v0.5 | 4 — AI integration | REST API + MCP server so any agent (local model, Claude, ChatGPT, Codex, ...) can connect; actionable distillation of ingested sources; plan-adjustment assistant. |
 | v0.6+ | — | Research-grounding approach (how an agent selects research: RAG, curated corpus, ...); additional data providers (e.g. Strava export). |
+| Providers (queued) | — | **Strava** and **COROS** are the first additional connections. Strava: its API terms reportedly prohibit using API data with AI applications, so plan on the one-time personal data export (not the API) until that is re-checked. COROS: how a personal user can get data out (API access, export files) has not been researched yet. Each plugs in through the provider interface (source + source id per activity). |
 | With 2nd provider | — | Cross-source linking and de-duplication: when more than one source is connected, match the same activity across them (e.g. Garmin and a Strava export) into one record so totals are not double counted. Keep each source's original record and link them, with a rule for which source wins per field. |
 | v0.7 | — | Mobile-friendly website (responsive layouts). |
 | v0.8 | — | Installable web app (PWA): home-screen icon, full-screen, fast loads. |
