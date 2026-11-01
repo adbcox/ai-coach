@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.5
+
+Fixed
+- Distances in the dashboard's Latest activities list no longer wrap ("7.19" above "km") on a wide screen.
+
 ## 0.4.4
 
 Added

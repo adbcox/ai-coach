@@ -127,7 +127,7 @@ export default function Dashboard({ open, goSettings }: { open: (id: number) => 
                 <tr key={a.id} className="click" onClick={() => open(a.id)}>
                   <td className="nowrap">{new Date(a.start_time).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</td>
                   <td className="ellip">{a.name ?? a.sport ?? "Activity"}</td>
-                  <td className="num">{km(a.distance_m)} {unitDist()}</td>
+                  <td className="num nowrap">{km(a.distance_m)} {unitDist()}</td>
                   <td className="num">{duration(a.duration_s)}</td>
                 </tr>
               ))}
