@@ -10,12 +10,14 @@ RUN npm run build
 
 # ---- slim runtime: sync + dashboard (+ agent access later) ----
 FROM python:3.13-slim AS slim
+ARG GIT_SHA=dev
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     AEC_DATA_DIR=/data \
     AEC_STATIC_DIR=/app/static \
-    PORT=26219
+    PORT=26219 \
+    AEC_BUILD=${GIT_SHA}
 WORKDIR /app
 COPY backend/ /app/backend/
 RUN pip install /app/backend && rm -rf /app/backend

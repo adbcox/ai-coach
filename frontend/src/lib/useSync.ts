@@ -11,7 +11,7 @@ export function useSync(onFinished?: () => void) {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  const running = !!status && (status.syncing || status.last_sync?.status === "running");
+  const running = !!status && status.syncing;
   useEffect(() => {
     if (!running) return;
     const t = setInterval(load, 2000);

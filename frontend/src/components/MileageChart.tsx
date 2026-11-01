@@ -1,17 +1,18 @@
 import { Activity } from "../api";
 import { km, lastDays, localDay, sportGroup, SportGroup } from "../lib/format";
 
-const GROUPS: SportGroup[] = ["Running", "Cycling", "Other"];
+const GROUPS: SportGroup[] = ["Running", "Cycling", "Hiking", "Other"];
 const COLORS: Record<SportGroup, string> = {
   Running: "var(--run)",
   Cycling: "var(--ride)",
+  Hiking: "var(--hike)",
   Other: "var(--other)",
 };
 
 export default function MileageChart({ activities, days = 14 }: { activities: Activity[]; days?: number }) {
   const labels = lastDays(days);
   const byDay = new Map<string, Record<SportGroup, number>>();
-  for (const day of labels) byDay.set(day, { Running: 0, Cycling: 0, Other: 0 });
+  for (const day of labels) byDay.set(day, { Running: 0, Cycling: 0, Hiking: 0, Other: 0 });
   for (const a of activities) {
     const bucket = byDay.get(localDay(a.start_time));
     if (bucket && a.distance_m) bucket[sportGroup(a.sport)] += a.distance_m / 1000;

@@ -50,10 +50,17 @@ class FakeGarmin:
         params = request.url.params
         if path.endswith("/dailysummaries"):
             has = params["endDate"] >= self.data_since
-            return httpx.Response(200, json={"data": [{"calendarDate": params["endDate"]}] if has else []})
+            item = {"calendarDate": params["endDate"], "movement": {"steps": {"value": 9000}},
+                    "heartRate": {"restingValue": 50}, "stress": {"avgLevel": 25},
+                    "bodyBattery": {"minValue": 20, "maxValue": 90}}
+            return httpx.Response(200, json={"data": [item] if has else []})
         if path.endswith("/sleep-service/sleep/dailySleep"):
             has = params["date"] >= self.data_since
-            return httpx.Response(200, json={"date": params["date"], "score": 80} if has else {})
+            body = {"calendarDate": params["date"], "sleepTimeSeconds": 27000, "deepSleepSeconds": 5400,
+                    "remSleepSeconds": 5400, "lightSleepSeconds": 14400, "awakeSleepSeconds": 1800,
+                    "sleepScores": {"overall": {"value": 80}}}
+            null_day = {"calendarDate": params["date"], "sleepTimeSeconds": None, "deviceRemCapable": False}
+            return httpx.Response(200, json=body if has else null_day)
         if path.endswith("/search/activities"):
             self.search_params.append(dict(params))
             start = int(request.url.params.get("start", 0))

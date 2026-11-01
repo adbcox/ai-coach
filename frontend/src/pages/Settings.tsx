@@ -1,10 +1,18 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { api, GarminStatus } from "../api";
 import Backups from "../components/Backups";
 import { intervalLabel, useSync } from "../lib/useSync";
 
 const KEY_PAGE = "https://connect.garmin.com/app/settings/personalApiToken";
 const DOCS = "https://developer.garmin.com/gc-developer-program/personal/personal-api/";
+
+function Version() {
+  const [v, setV] = useState("");
+  useEffect(() => {
+    api<{ version: string; build: string }>("/health").then((h) => setV(`v${h.version} (build ${h.build})`)).catch(() => undefined);
+  }, []);
+  return <p className="muted" style={{ textAlign: "center" }}>Endurance Coach {v}</p>;
+}
 
 export default function Settings({ onRestored }: { onRestored: () => void }) {
   const { status, setStatus, running, start, load } = useSync();
@@ -136,7 +144,8 @@ export default function Settings({ onRestored }: { onRestored: () => void }) {
         <p className="muted">
           Having problems or want help improving the app? Download a{" "}
           <a href="/api/diagnostics/shapes" download>data-shapes file</a>: field names, types and
-          numeric min/max ranges, with no names, places, GPS coordinates or dates, and share it.
+          numeric ranges. It leaves out names, places, GPS coordinates, ids, timestamps and body
+          measurements, but still look it over before sharing.
         </p>
       )}
 
@@ -148,6 +157,7 @@ export default function Settings({ onRestored }: { onRestored: () => void }) {
       )}
     </section>
     <Backups onRestored={onRestored} />
+    <Version />
     </div>
   );
 }

@@ -4,15 +4,16 @@ import Activities from "./pages/Activities";
 import ActivityDetail from "./pages/ActivityDetail";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import Recovery from "./pages/Recovery";
 import Settings from "./pages/Settings";
 
-type Route = { name: "dashboard" | "activities" | "settings" } | { name: "activity"; id: number };
+type Route = { name: "dashboard" | "activities" | "recovery" | "settings" } | { name: "activity"; id: number };
 
 function parseHash(): Route {
   const h = window.location.hash.replace(/^#\/?/, "");
   const m = h.match(/^activity\/(\d+)$/);
   if (m) return { name: "activity", id: Number(m[1]) };
-  if (h === "activities" || h === "settings") return { name: h };
+  if (h === "activities" || h === "recovery" || h === "settings") return { name: h };
   return { name: "dashboard" };
 }
 
@@ -43,7 +44,7 @@ export default function App() {
       <header>
         <a className="brand" href="#/"><img src="/logo.svg" alt="" width="26" height="26" /><strong>Endurance Coach</strong></a>
         <nav>
-          {(["dashboard", "activities", "settings"] as const).map((t) => (
+          {(["dashboard", "activities", "recovery", "settings"] as const).map((t) => (
             <button key={t} className={tab === t ? "active" : ""} onClick={() => go(t === "dashboard" ? "" : t)}>
               {t[0].toUpperCase() + t.slice(1)}
             </button>
@@ -57,6 +58,7 @@ export default function App() {
         {route.name === "dashboard" && <Dashboard open={openActivity} goSettings={() => go("settings")} />}
         {route.name === "activities" && <Activities open={openActivity} goSettings={() => go("settings")} />}
         {route.name === "activity" && <ActivityDetail id={route.id} back={() => window.history.back()} />}
+        {route.name === "recovery" && <Recovery goSettings={() => go("settings")} />}
         {route.name === "settings" && <Settings onRestored={refresh} />}
       </main>
     </div>

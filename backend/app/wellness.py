@@ -19,8 +19,9 @@ from .garmin.client import GarminClient, GarminError
 
 SOURCE = "garmin"
 CHUNK_DAYS = 28
-EMPTY_CHUNKS_STOP = 8   # consecutive empty 28-day windows => end of history
-EMPTY_DAYS_STOP = 45    # consecutive empty days => end of history
+HISTORY_FLOOR = date(2010, 1, 1)  # never look further back than this
+EMPTY_CHUNKS_STOP = 12  # consecutive empty 28-day windows (~1 year) => end of history
+EMPTY_DAYS_STOP = 120   # consecutive empty days (~4 months) => end of history
 
 
 @dataclass(frozen=True)
@@ -67,6 +68,64 @@ def is_empty(value: Any) -> bool:
     return False
 
 
+def _dig(obj: Any, *keys: str) -> Any:
+    for key in keys:
+        if not isinstance(obj, dict):
+            return None
+        obj = obj.get(key)
+    return obj
+
+
+def _any(items: Any, pred: Callable[[dict], bool]) -> bool:
+    return isinstance(items, list) and any(pred(i) for i in items if isinstance(i, dict))
+
+
+# Garmin returns well-formed objects full of nulls for days without data, so "empty"
+# is decided per data type (shapes seen in a real account).
+_HAS_DATA: dict[str, Callable[[Any], bool]] = {
+    "sleep": lambda p: bool(_dig(p, "sleepTimeSeconds")),
+    "hrv": lambda p: _dig(p, "hrvSummary", "lastNightAvg") is not None or bool(_dig(p, "hrvReadings")),
+    "heart_rate": lambda p: _dig(p, "restingHeartRate") is not None or bool(_dig(p, "heartRateValues")),
+    "daily_summaries": lambda p: _any(
+        _dig(p, "data"),
+        lambda d: _dig(d, "movement", "steps", "value") is not None
+        or _dig(d, "heartRate", "restingValue") is not None),
+    "body_battery": lambda p: _any(
+        p, lambda d: d.get("charged") is not None or bool(d.get("bodyBatteryValueDescriptorDTOList"))),
+    "sleep_summaries": lambda p: _any(p, lambda d: bool(d.get("sleepTimeSeconds"))),
+    "hrv_summaries": lambda p: _any(
+        _dig(p, "hrvSummaries"),
+        lambda d: d.get("lastNightAvg") is not None or d.get("weeklyAvg") is not None),
+    "steps": lambda p: _any(p, lambda d: d.get("totalSteps") is not None),
+    "weight": lambda p: bool(_dig(p, "dailyWeightSummaries")),
+}
+
+
+def has_data(kind: str, payload: Any) -> bool:
+    check = _HAS_DATA.get(kind)
+    if check is not None:
+        try:
+            return bool(check(payload))
+        except (AttributeError, TypeError):
+            pass
+    return not is_empty(payload)
+
+
+def reclassify(conn) -> None:
+    """One-off: recompute the empty flag of rows stored by earlier versions."""
+    if get_state(conn, "wellness_reclassified_v2") == "1":
+        return
+    for row in conn.execute("SELECT kind, start_date, end_date, payload FROM wellness_raw").fetchall():
+        try:
+            empty = 0 if has_data(row["kind"], json.loads(row["payload"])) else 1
+        except ValueError:
+            continue
+        conn.execute("UPDATE wellness_raw SET is_empty=? WHERE source=? AND kind=? AND start_date=? "
+                     "AND end_date=?", (empty, SOURCE, row["kind"], row["start_date"], row["end_date"]))
+    conn.commit()
+    set_state(conn, "wellness_reclassified_v2", "1")
+
+
 def _now() -> str:
     return datetime.now(UTC).isoformat(timespec="seconds")
 
@@ -103,7 +162,7 @@ def _stored(conn, kind: str, start: str, end: str):
 
 
 def _save(conn, kind: str, start: str, end: str, payload: Any) -> bool:
-    empty = is_empty(payload)
+    empty = not has_data(kind, payload)
     conn.execute(
         "INSERT OR REPLACE INTO wellness_raw (source, kind, start_date, end_date, fetched_at, "
         "is_empty, payload) VALUES (?,?,?,?,?,?,?)",
@@ -147,7 +206,7 @@ class Walker:
         return payload
 
     def range_kind(self, kind: RangeKind, floor: date, full: bool, lookback: int) -> None:
-        state_key = f"wellness_{kind.name}_done"
+        state_key = f"wellness_v2_{kind.name}_done"
         done = get_state(self.conn, state_key) == "1" and not full
         since = refresh_from(self.conn, kind.name, lookback)
         newest = date.today().toordinal() // CHUNK_DAYS
@@ -183,7 +242,7 @@ class Walker:
             set_state(self.conn, state_key, "1")
 
     def day_kind(self, kind: DayKind, floor: date, full: bool, lookback: int) -> None:
-        state_key = f"wellness_{kind.name}_done"
+        state_key = f"wellness_v2_{kind.name}_done"
         done = get_state(self.conn, state_key) == "1" and not full
         since = refresh_from(self.conn, kind.name, lookback)
         empties = 0
@@ -221,6 +280,8 @@ class Walker:
 def sync_wellness(conn, client: GarminClient, settings: Settings, *, full: bool,
                   progress: Progress, floor: date, lookback: int) -> list[str]:
     """Returns human-readable notes (kinds that were unavailable, etc.)."""
+    reclassify(conn)
+    floor = max(floor, HISTORY_FLOOR)
     walker = Walker(conn, client, settings, progress)
     for rk in RANGE_KINDS:
         walker.range_kind(rk, floor, full, lookback)

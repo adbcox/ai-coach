@@ -103,3 +103,38 @@ is a community client. Not used by this app. How it authenticates and
 whether using it conflicts with Garmin's terms have not been checked, so
 treat it as an unvetted option only if a metric the Personal API lacks
 proves necessary.
+
+## Observed response shapes (one real account, 452 activities, 2023-12 to 2026-11)
+
+Taken from the app's data-shapes export. Units are as Garmin sends them.
+
+- **Activity list item**: `distance` (m), `duration` (s), `averageSpeed` (m/s),
+  `averageHR`/`maxHR`, `elevationGain`/`elevationLoss` (m),
+  `activityTrainingLoad`, `aerobicTrainingEffect`/`anaerobicTrainingEffect`
+  with `...Message` and `trainingEffectLabel`, `hrTimeInZone_1..5` (s),
+  `powerTimeInZone_1..5`, `avgPower`/`normPower`, running dynamics
+  (`averageRunningCadenceInStepsPerMinute`, `avgStrideLength` in cm,
+  `avgGroundContactTime` ms, `avgVerticalOscillation` cm), `fastestSplit_1000`/
+  `_1609`/`_5000`/`_10000`/`_21098` (s), `splitSummaries`, strength-training
+  `summarizedExerciseSets`, `differenceBodyBattery`, intensity minutes.
+  No `vO2MaxValue` field is present (confirmed).
+- **Sports seen** (`activityType.typeKey`): running 159, strength_training 135,
+  treadmill_running 31, hiking 31, golf 21, cycling 20, trail_running 19, plus
+  skiing, walking, pilates, kayaking and others. Treadmill, trail, track and
+  street running all count as "Running" in the app.
+- **FIT samples**: 449 of 452 activities have per-sample data (avg ~2,200,
+  max ~14,600 samples). Fill rates: heart rate 94%, distance 95%, speed 76%,
+  GPS/altitude 72% (indoor and strength sessions have none), cadence 56%,
+  power 49%.
+- **Daily health data**: `sleep` (per day) has `sleepTimeSeconds`, stage
+  seconds, `sleepScores.overall.value`, `sleepNeed`; `hrv`/`hrv_summaries` have
+  `lastNightAvg`, `weeklyAvg`, `status` and `baseline.balancedLow/Upper`;
+  `daily_summaries.data[]` has resting HR, Body Battery min/max/charged/drained,
+  stress average and qualifier, steps, intensity minutes, respiration, SpO2;
+  `body_battery` has intraday `[timestamp, value]` arrays.
+- **Days without data** come back as well-formed objects full of nulls
+  (booleans like `retro: false` and `deviceRemCapable: false` still present),
+  so "empty" is decided per data type, not by looking at the JSON as a whole.
+- **Weight** is in grams. Hydration returned nothing for this account.
+- The per-day HRV endpoint only reached back to 2025-06 in this account while
+  the HRV range endpoint went back to 2023-10, so long histories use the range data.

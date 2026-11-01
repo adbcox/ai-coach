@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json as _json
+import os
 import time
 import uuid
 from collections import defaultdict
@@ -16,7 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import __version__, backup, db, diagnostics, schedule, security, smb
+from . import __version__, backup, db, diagnostics, recovery, schedule, security, smb
 from .config import Settings
 from .crypto import SecretBox
 from .garmin.client import GarminError
@@ -71,6 +72,15 @@ def create_app(
     settings = settings or Settings.from_env()
     db.init_db(settings.db_path)
     box = SecretBox.load(settings.secrets_dir, settings.app_secret)
+    _conn = db.connect(settings.db_path)
+    try:  # a restart kills any running sync; do not leave its row "running" forever
+        _conn.execute(
+            "UPDATE sync_runs SET status='error', finished_at=?, message=COALESCE(message, '') || "
+            "' (interrupted: the server restarted; run Sync again to continue)' WHERE status='running'",
+            (_now(),))
+        _conn.commit()
+    finally:
+        _conn.close()
     manager = SyncManager(settings, box, client_factory)
     failures: dict[str, list[float]] = defaultdict(list)
     backups = backup.BackupManager(settings, box)
@@ -123,9 +133,11 @@ def create_app(
                             secure=settings.secure_cookies, max_age=settings.session_days * 86400,
                             path="/")
 
+    build_id = (os.environ.get("AEC_BUILD") or "dev")[:7]
+
     @app.get("/api/health")
     def health() -> dict:
-        return {"status": "ok", "version": __version__}
+        return {"status": "ok", "version": __version__, "build": build_id}
 
     @app.get("/api/session")
     def session(request: Request, conn=Depends(get_conn)) -> dict:
@@ -338,6 +350,11 @@ def create_app(
             upload.unlink(missing_ok=True)
             backups.lock.release()
             manager.release_exclusive()
+
+    @app.get("/api/recovery")
+    def recovery_days(days: int = 90, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        days = max(7, min(days, 3650))
+        return {"days": recovery.build(conn, days)}
 
     @app.get("/api/diagnostics/shapes")
     def diagnostics_shapes(_=Depends(current_user), conn=Depends(get_conn)) -> Response:

@@ -4,6 +4,26 @@ import LinkedCharts from "../components/LinkedCharts";
 import RunMap from "../components/RunMap";
 import { duration, km, kmh, pace, sportGroup } from "../lib/format";
 
+function ZoneBars({ summary }: { summary: Record<string, unknown> }) {
+  const zones = [1, 2, 3, 4, 5].map((z) => num(summary[`hrTimeInZone_${z}`]) ?? 0);
+  const total = zones.reduce((a, b) => a + b, 0);
+  if (total <= 0) return null;
+  // Strava-style zone colours: 1 grey, 2 blue, 3 green, 4 orange, 5 red
+  const colors = ["#8b949e", "#1f6feb", "#2da44e", "#e8590c", "#cf222e"];
+  return (
+    <section className="card wide">
+      <h3 style={{ margin: 0 }}>Time in heart-rate zones</h3>
+      {zones.map((sec, i) => (
+        <div key={i} className="zonerow">
+          <span className="muted">Zone {i + 1}</span>
+          <div className="zonebar"><i style={{ width: `${(sec / total) * 100}%`, background: colors[i] }} /></div>
+          <span>{duration(sec)} <span className="muted">({Math.round((sec / total) * 100)}%)</span></span>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 const num = (v: unknown): number | null => (typeof v === "number" && isFinite(v) ? v : null);
 
 export default function ActivityDetail({ id, back }: { id: number; back: () => void }) {
@@ -40,6 +60,20 @@ export default function ActivityDetail({ id, back }: { id: number; back: () => v
     ["Avg HR", detail.avg_hr ? `${Math.round(detail.avg_hr)} bpm` : "–"],
     ["Max HR", detail.max_hr ? `${Math.round(detail.max_hr)} bpm` : "–"],
   ];
+  const cad = num(s["averageRunningCadenceInStepsPerMinute"]);
+  const stride = num(s["avgStrideLength"]);
+  const gct = num(s["avgGroundContactTime"]);
+  const vo = num(s["avgVerticalOscillation"]);
+  const pw = num(s["avgPower"]);
+  const npw = num(s["normPower"]);
+  const temp = num(s["maxTemperature"]);
+  if (cad) stats.push(["Cadence", `${Math.round(cad)} spm`]);
+  if (stride && stride > 30) stats.push(["Stride length", `${(stride / 100).toFixed(2)} m`]);
+  if (gct && gct > 0) stats.push(["Ground contact", `${Math.round(gct)} ms`]);
+  if (vo) stats.push(["Vertical oscillation", `${vo.toFixed(1)} cm`]);
+  if (pw) stats.push(["Avg power", `${Math.round(pw)} W`]);
+  if (npw) stats.push(["Normalized power", `${Math.round(npw)} W`]);
+  if (temp != null) stats.push(["Max temperature", `${Math.round(temp)} °C`]);
   if (load != null) stats.push(["Training load", load.toFixed(0)]);
   if (aero != null) stats.push(["Aerobic effect", aero.toFixed(1)]);
   if (anaero != null) stats.push(["Anaerobic effect", anaero.toFixed(1)]);
@@ -65,6 +99,8 @@ export default function ActivityDetail({ id, back }: { id: number; back: () => v
           </div>
         ))}
       </div>
+
+      <ZoneBars summary={s} />
 
       {!samples && <p className="muted">Loading track…</p>}
       {samples && samples.t.length === 0 && (

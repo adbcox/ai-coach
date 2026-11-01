@@ -62,3 +62,7 @@ select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; b
 .check input { min-width: 0; width: auto; }
 .row label input { min-width: 0; width: 100%; }
 .row label input[type=checkbox] { width: auto; }
+:root { --hike: #2da44e; }
+.zonerow { display: grid; grid-template-columns: 60px 1fr 140px; gap: 10px; align-items: center; }
+.zonebar { background: var(--line); border-radius: 4px; height: 12px; overflow: hidden; }
+.zonebar i { display: block; height: 100%; }

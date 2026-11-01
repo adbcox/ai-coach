@@ -25,6 +25,13 @@ MAX_ENUM_VALUES = 12
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _DATETIME = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")
 _COORD_KEYS = re.compile(r"lat|lon|long|position|gps|polyline|location|address|name|email", re.I)
+# Numeric fields whose min/max would identify the account, the device, the timeline or the
+# body (IDs, timestamps, weight and body composition). Types and counts are still shown.
+_PRIVATE_NUM_KEYS = re.compile(
+    r"(^|[a-z0-9_])(id|pk|uuid)$|userprofile|owner|device|samplepk|timestamp|time(gmt|local)?$|"
+    r"date|^from$|^until$|created|begin|weight|bmi|bodyfat|bodywater|bonemass|musclemass|"
+    r"visceral|metabolicage|height", re.I)
+_BIG = 1_000_000_000  # anything this large is an epoch time or an id, never a training value
 
 
 class Shape:
@@ -47,7 +54,7 @@ class Shape:
             slot["types"]["bool"] += 1
         elif isinstance(value, (int, float)):
             slot["types"]["number"] += 1
-            if not _COORD_KEYS.search(key):
+            if not (_COORD_KEYS.search(key) or _PRIVATE_NUM_KEYS.search(key) or abs(value) >= _BIG):
                 slot["min"] = value if slot["min"] is None else min(slot["min"], value)
                 slot["max"] = value if slot["max"] is None else max(slot["max"], value)
         elif isinstance(value, str):
@@ -91,7 +98,7 @@ class Shape:
 
 def build(conn) -> dict[str, Any]:
     report: dict[str, Any] = {"app_version": __version__, "note": (
-        "Structure only: no names, GPS coordinates or dates. Numeric fields show min/max across records."), }
+        "Structure only. No names, GPS coordinates, ids, timestamps, dates or body measurements. Other numeric fields (distance, heart rate, ...) show min/max across records."), }
 
     counts = conn.execute(
         "SELECT sport, COUNT(*) AS n FROM activities GROUP BY sport ORDER BY n DESC").fetchall()

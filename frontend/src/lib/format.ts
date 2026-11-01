@@ -1,9 +1,10 @@
-export type SportGroup = "Running" | "Cycling" | "Other";
+export type SportGroup = "Running" | "Cycling" | "Hiking" | "Other";
 
 export function sportGroup(sport: string | null): SportGroup {
   const s = (sport ?? "").toLowerCase();
   if (s.includes("run")) return "Running";
   if (s.includes("cycl") || s.includes("bik") || s.includes("ride")) return "Cycling";
+  if (s.includes("hik") || s.includes("walk")) return "Hiking";
   return "Other";
 }
 

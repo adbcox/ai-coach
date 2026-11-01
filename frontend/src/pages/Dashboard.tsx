@@ -5,11 +5,19 @@ import RollingCharts from "../components/RollingCharts";
 import { duration, km, lastDays, localDay, sportGroup, SportGroup } from "../lib/format";
 import { ago, useSync } from "../lib/useSync";
 
-const FILTERS: ("All" | SportGroup)[] = ["All", "Running", "Cycling", "Other"];
+const FILTERS: ("All" | SportGroup)[] = ["All", "Running", "Cycling", "Hiking", "Other"];
+const KEY = "aec.dashboard.filter";
+function savedFilter(): (typeof FILTERS)[number] {
+  try {
+    const v = localStorage.getItem(KEY);
+    if (v && (FILTERS as string[]).includes(v)) return v as (typeof FILTERS)[number];
+  } catch { /* storage unavailable */ }
+  return "Running";
+}
 
 export default function Dashboard({ open, goSettings }: { open: (id: number) => void; goSettings: () => void }) {
   const [items, setItems] = useState<Activity[] | null>(null);
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All");
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]>(savedFilter);
   const [error, setError] = useState("");
 
   const loadActivities = useCallback(() => {
@@ -79,7 +87,7 @@ export default function Dashboard({ open, goSettings }: { open: (id: number) => 
         <h2 style={{ margin: 0 }}>Last 14 days</h2>
         <div className="chips">
           {FILTERS.map((f) => (
-            <button key={f} className={f === filter ? "active" : ""} onClick={() => setFilter(f)}>
+            <button key={f} className={f === filter ? "active" : ""} onClick={() => { setFilter(f); try { localStorage.setItem(KEY, f); } catch { /* ignore */ } }}>
               {f}
             </button>
           ))}

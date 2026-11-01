@@ -16,7 +16,7 @@ from .config import Settings
 from .crypto import SecretBox
 from .fit.parser import FitError, ParsedActivity, extract_fit, parse_fit
 from .garmin.client import GarminClient, GarminError
-from .wellness import get_state, set_state, sync_wellness
+from .wellness import HISTORY_FLOOR, get_state, set_state, sync_wellness
 
 PROVIDER = "garmin"
 PAGE = 50
@@ -186,11 +186,7 @@ class SyncManager:
             with client:
                 client.ensure_token()
                 new, failures = self._sync_activities(conn, client, full, lookback, progress)
-                earliest = conn.execute(
-                    "SELECT MIN(start_time) AS m FROM activities WHERE source=?", (PROVIDER,)
-                ).fetchone()["m"]
-                floor = (datetime.fromisoformat(earliest).date() - timedelta(days=365)
-                         if earliest else date.today() - timedelta(days=730))
+                floor = HISTORY_FLOOR  # walk back until the data runs out
                 notes = sync_wellness(conn, client, self.settings, full=full,
                                       progress=progress, floor=floor, lookback=lookback)
         except GarminError as exc:

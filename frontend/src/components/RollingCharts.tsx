@@ -9,7 +9,7 @@ interface Pt { day: string; value: number }
 
 function niceMax(v: number): number {
   if (v <= 0) return 5;
-  const step = v <= 10 ? 2 : v <= 30 ? 5 : v <= 100 ? 10 : 25;
+  const step = v <= 10 ? 2 : v <= 30 ? 5 : v <= 100 ? 10 : v <= 250 ? 25 : 50;
   return Math.max(step, Math.ceil(v / step) * step);
 }
 
@@ -91,7 +91,7 @@ export default function RollingCharts({ activities, noun }: { activities: Activi
     const avg: Pt[] = [], longest: Pt[] = [];
     for (let i = WINDOW - 1; i < days.length; i++) {
       const win = days.slice(i - WINDOW + 1, i + 1);
-      avg.push({ day: days[i], value: win.reduce((n, d) => n + total.get(d)!, 0) / WINDOW });
+      avg.push({ day: days[i], value: win.reduce((n, d) => n + total.get(d)!, 0) });
       longest.push({ day: days[i], value: Math.max(...win.map((d) => best.get(d)!)) });
     }
     return { avg, longest };
@@ -100,11 +100,11 @@ export default function RollingCharts({ activities, noun }: { activities: Activi
   return (
     <div className="grid2">
       <LineChart
-        title="Rolling 7-day average distance"
-        unit="km/day"
+        title="Weekly mileage (rolling 7 days)"
+        unit="km/week"
         points={avg}
         color="var(--run)"
-        sub="Each point is the average daily distance over the 7 days ending that day (weekly total ÷ 7)."
+        sub="Each point is the total distance of the 7 days ending that day (km per week), so you can see how mileage builds."
       />
       <LineChart
         title={`Rolling 7-day longest ${noun}`}
