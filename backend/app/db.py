@@ -109,6 +109,19 @@ CREATE TABLE IF NOT EXISTS best_efforts (
     gap_s REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (activity_id, distance_m)
 );
+-- Same as best_efforts, but on a grade-adjusted axis: distance_m is FLAT-EQUIVALENT distance and
+-- covered_m is the real distance run in that stretch (see efforts.equivalent_distance).
+CREATE TABLE IF NOT EXISTS best_efforts_gap (
+    activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    distance_m REAL NOT NULL,
+    time_s REAL NOT NULL,
+    start_offset_s REAL NOT NULL,
+    avg_hr REAL,
+    ascent_m REAL,
+    gap_s REAL NOT NULL DEFAULT 0,
+    covered_m REAL NOT NULL,
+    PRIMARY KEY (activity_id, distance_m)
+);
 CREATE TABLE IF NOT EXISTS effort_scan (
     activity_id INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,
     scanned_at TEXT NOT NULL,
@@ -118,6 +131,19 @@ CREATE TABLE IF NOT EXISTS effort_scan (
 CREATE TABLE IF NOT EXISTS effort_exclusions (
     activity_id INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,
     created_at TEXT NOT NULL
+);
+
+-- Peak sustained heart rate per activity (see efforts.hr_peak), for estimating max heart rate.
+CREATE TABLE IF NOT EXISTS hr_peaks (
+    activity_id INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,
+    peak_hr REAL NOT NULL,
+    at_offset_s REAL NOT NULL,
+    samples INTEGER NOT NULL
+);
+-- Activities the athlete says were races (used to check predictions against real results).
+CREATE TABLE IF NOT EXISTS race_marks (
+    activity_id INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,
+    marked_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS sync_runs (

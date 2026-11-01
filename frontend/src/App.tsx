@@ -6,6 +6,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Predict from "./pages/Predict";
 import Recovery from "./pages/Recovery";
+import References from "./pages/References";
 import Settings from "./pages/Settings";
 
 const ICONS: Record<string, string> = {
@@ -24,12 +25,14 @@ function Icon({ name }: { name: string }) {
   );
 }
 
-type Route = { name: "dashboard" | "activities" | "predict" | "recovery" | "settings" } | { name: "activity"; id: number };
+type Route = { name: "dashboard" | "activities" | "predict" | "recovery" | "settings" } | { name: "activity"; id: number } | { name: "references"; id?: string };
 
 function parseHash(): Route {
   const h = window.location.hash.replace(/^#\/?/, "");
   const m = h.match(/^activity\/(\d+)$/);
   if (m) return { name: "activity", id: Number(m[1]) };
+  const r = h.match(/^references(?:\/([a-z0-9_]+))?$/);
+  if (r) return { name: "references", id: r[1] };
   if (h === "activities" || h === "predict" || h === "recovery" || h === "settings") return { name: h };
   return { name: "dashboard" };
 }
@@ -55,7 +58,7 @@ export default function App() {
   if (session.setup_required) return <Auth mode="setup" onDone={refresh} />;
   if (!session.authenticated) return <Auth mode="login" onDone={refresh} />;
 
-  const tab = route.name === "activity" ? "activities" : route.name;
+  const tab = route.name === "activity" ? "activities" : route.name === "references" ? "settings" : route.name;
   return (
     <div className="shell">
       <header>
@@ -77,6 +80,7 @@ export default function App() {
         {route.name === "activity" && <ActivityDetail id={route.id} back={() => window.history.back()} />}
         {route.name === "predict" && <Predict goSettings={() => go("settings")} />}
         {route.name === "recovery" && <Recovery goSettings={() => go("settings")} />}
+        {route.name === "references" && <References focus={route.id} />}
         {route.name === "settings" && <Settings onRestored={refresh} />}
       </main>
       <nav className="tabbar" aria-label="Main">

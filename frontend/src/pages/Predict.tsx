@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
+import Cite from "../components/Cite";
+import Vo2max from "../components/Vo2max";
 
 interface Brief { activity_id: number; date: string; name: string | null; distance_m: number; time_s: number }
 interface Effort extends Brief {
   pace_s_per_km: number; avg_hr: number | null; kind: string; flags: string[]; used: boolean; not_used_because: string[];
+  adjustment: string; covered_m: number; is_race: boolean;
 }
 interface Method {
   id: string; name: string; time_s: number | null; status: "ok" | "extrapolated" | "reference_only" | "not_enough_data";
@@ -15,11 +18,13 @@ interface Target {
   key: string; label: string; distance_m: number; actual_best: Brief | null; methods: Method[]; notes: string[];
   headline: { middle_s: number; low_s: number; high_s: number; pace_s_per_km: number; n_methods: number; how: string } | null;
   support: { level: "good" | "extrapolated" | "weak"; text: string; rule: string } | null;
-  backtest: { summary: Record<string, BtSummary>; n_anchors: number; how: string };
+  backtest: { summary: Record<string, BtSummary>; n_anchors: number; how: string; basis: string; races: RaceRow[] };
 }
-interface Citation { id: string; short: string; text: string; url: string; note: string }
+interface Citation { id: string; short: string; how_used: string; verified_label: string }
+interface GapModel { name: string; steps: string[]; table: { grade_pct: number; cost_j_per_kg_m: number; ratio: number }[]; limits: string; citation: string }
+interface RaceRow { on: string; activity_id: number; name: string | null; actual_s: number; predictions: Record<string, { time_s: number; error_pct: number }> }
 interface Result {
-  mission: string; efforts: Effort[]; targets: Target[]; citations: Citation[]; caveats: string[];
+  mission: string; efforts: Effort[]; targets: Target[]; citations: Citation[]; caveats: string[]; gap_model: GapModel;
   context: { weeks: number; runs: number; weekly_km: number; longest_run_km: number; text: string };
   scan: { running: boolean; done: number; total: number; pending: number };
 }
@@ -38,17 +43,18 @@ const METHOD_LABEL: Record<string, string> = { riegel_106: "Riegel k = 1.06", ri
 
 export default function Predict({ goSettings }: { goSettings: () => void }) {
   const [windowDays, setWindowDays] = useState(365);
-  const [indoor, setIndoor] = useState(false);
-  const [trail, setTrail] = useState(false);
+  const [indoor, setIndoor] = useState(true);
+  const [trail, setTrail] = useState(true);
+  const [gap, setGap] = useState(true);
   const [sel, setSel] = useState("10k");
   const [data, setData] = useState<Result | null>(null);
   const [error, setError] = useState("");
   const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(() => {
-    api<Result>(`/predictions?window_days=${windowDays}&include_indoor=${indoor}&include_trail=${trail}`)
+    api<Result>(`/predictions?window_days=${windowDays}&include_indoor=${indoor}&include_trail=${trail}&use_gap=${gap}`)
       .then(setData).catch((e) => setError(e.message));
-  }, [windowDays, indoor, trail]);
+  }, [windowDays, indoor, trail, gap]);
   useEffect(load, [load]);
   useEffect(() => {
     if (!data?.scan.running && !data?.scan.pending) return;
@@ -103,10 +109,14 @@ export default function Predict({ goSettings }: { goSettings: () => void }) {
               <option value={365}>12 months</option><option value={730}>2 years</option>
             </select>
           </label>
+          <label className="check"><input type="checkbox" checked={gap} onChange={(e) => setGap(e.target.checked)} /> Grade-adjusted pace (hills)</label>
           <label className="check"><input type="checkbox" checked={indoor} onChange={(e) => setIndoor(e.target.checked)} /> Include treadmill runs</label>
-          <label className="check"><input type="checkbox" checked={trail} onChange={(e) => setTrail(e.target.checked)} /> Include trail runs</label>
+          <label className="check"><input type="checkbox" checked={trail && gap} disabled={!gap} onChange={(e) => setTrail(e.target.checked)} /> Include trail runs (needs grade adjustment)</label>
         </div>
-        <span className="muted">Treadmill distances come from a foot pod or watch estimate and trail runs include climbing, so both are left out unless you turn them on.</span>
+        <span className="muted">
+          Grade-adjusted pace converts hilly running into the flat running that would cost the same energy, so trail and hilly efforts can be compared with road efforts
+          (<Cite id="minetti2002" />). Treadmill runs are used as recorded. Open "How grade adjustment works" below to see the formula.
+        </span>
       </section>
 
       <div className="tiles">
@@ -147,6 +157,15 @@ export default function Predict({ goSettings }: { goSettings: () => void }) {
               For each run, the app finds the fastest stretch of each distance (a sliding window over your per-second distance, so it can sit inside a longer run). The fastest one in your chosen period is used. Turn any effort off to see the prediction change.
             </span>
             {data.efforts.length === 0 && <p className="muted">No best efforts yet. They appear after a sync once your runs have been analysed.</p>}
+            <details className="method">
+              <summary><span className="mname">How grade adjustment works</span><Cite id={data.gap_model.citation} /></summary>
+              <pre className="math">{data.gap_model.steps.join("\n")}</pre>
+              <div className="tablewrap"><table>
+                <thead><tr><th>Slope</th><th className="num">Cost (J/kg/m)</th><th className="num">Ratio to flat</th></tr></thead>
+                <tbody>{data.gap_model.table.map((r) => <tr key={r.grade_pct}><td>{r.grade_pct > 0 ? "+" : ""}{r.grade_pct.toFixed(0)}%</td><td className="num">{r.cost_j_per_kg_m.toFixed(2)}</td><td className="num">{r.ratio.toFixed(2)}x</td></tr>)}</tbody>
+              </table></div>
+              <p className="warnline">{data.gap_model.limits}</p>
+            </details>
             <div className="tablewrap">
               <table>
                 <thead><tr><th>Distance</th><th>Time</th><th className="num">Pace</th><th>Date</th><th className="hide-sm">Run</th><th></th></tr></thead>
@@ -157,7 +176,7 @@ export default function Predict({ goSettings }: { goSettings: () => void }) {
                       <td className="nowrap"><a href={`#/activity/${e.activity_id}`}>{t(e.time_s)}</a></td>
                       <td className="num nowrap">{pace(e.pace_s_per_km)}</td>
                       <td className="nowrap">{new Date(e.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" })}</td>
-                      <td className="hide-sm">{[...e.flags, ...e.not_used_because].join("; ") || "used"}</td>
+                      <td className="hide-sm" title={e.adjustment}>{[...e.flags, ...e.not_used_because].join("; ") || "used"}{e.adjustment ? " – " + e.adjustment : ""}</td>
                       <td><button className="link" onClick={() => toggle(e)}>{e.not_used_because.includes("excluded by you") ? "include" : e.used ? "leave out" : ""}</button></td>
                     </tr>
                   ))}
@@ -184,7 +203,7 @@ export default function Predict({ goSettings }: { goSettings: () => void }) {
                 {m.by_source && m.by_source.length > 1 && (
                   <p className="muted">From each of your efforts separately: {m.by_source.map((b) => `${dist(b.from.distance_m)} ${t(b.from.time_s)} → ${t(b.time_s)}`).join("; ")}.</p>
                 )}
-                <p className="muted">Source: {data.citations.find((c) => c.id === m.citation)?.short}</p>
+                <p className="muted">Source: <Cite id={m.citation} /></p>
               </details>
             ))}
           </section>
@@ -211,6 +230,23 @@ export default function Predict({ goSettings }: { goSettings: () => void }) {
                 </table>
               </div>
             )}
+            {target.backtest.races.length > 0 && (
+              <>
+                <h4 style={{ margin: "8px 0 0" }}>Your marked races at this distance</h4>
+                <div className="tablewrap"><table>
+                  <thead><tr><th>Race</th><th className="num">Actual</th><th className="num">Riegel 1.06</th><th className="num hide-sm">Your fit</th><th className="num">VDOT</th></tr></thead>
+                  <tbody>{target.backtest.races.map((r) => (
+                    <tr key={r.activity_id}>
+                      <td className="nowrap"><a href={`#/activity/${r.activity_id}`}>{r.on}</a></td><td className="num">{t(r.actual_s)}</td>
+                      {["riegel_106", "riegel_fit", "vdot"].map((id) => (
+                        <td key={id} className={`num ${id === "riegel_fit" ? "hide-sm" : ""}`}>{r.predictions[id] ? `${t(r.predictions[id].time_s)} (${r.predictions[id].error_pct > 0 ? "+" : ""}${r.predictions[id].error_pct.toFixed(1)}%)` : "–"}</td>
+                      ))}
+                    </tr>
+                  ))}</tbody>
+                </table></div>
+                <span className="muted">Predicted from only the efforts in the 90 days before each race. Mark more races on their activity page.</span>
+              </>
+            )}
             {target.methods.find((m) => m.interval_s) && (() => {
               const m = target.methods.find((x) => x.interval_s)!;
               return <p className="muted" style={{ margin: 0 }}>The fitted-exponent method also gives a 95% prediction interval of {t(m.interval_s![0])} to {t(m.interval_s![1])}: with few efforts this is wide, and that is the honest size of the uncertainty.</p>;
@@ -227,13 +263,16 @@ export default function Predict({ goSettings }: { goSettings: () => void }) {
         </>
       )}
 
+      <Vo2max />
+
       <section className="card wide">
         <h3 style={{ margin: 0 }}>Sources and limits</h3>
         <ul className="sources">
           {data.citations.map((c) => (
-            <li key={c.id}><a href={c.url} target="_blank" rel="noreferrer">{c.short}</a>: {c.text} <em className="muted">{c.note}</em></li>
+            <li key={c.id}><Cite id={c.id} /> {c.how_used} <em className="muted">({c.verified_label})</em></li>
           ))}
         </ul>
+        <span className="muted">Every source, with how well it was checked and its limits, is on the <a href="#/references">references page</a>.</span>
         {data.caveats.map((c) => <p key={c} className="muted" style={{ margin: 0 }}>{c}</p>)}
         <div className="row">
           <button onClick={download}>Download the full calculation (JSON)</button>

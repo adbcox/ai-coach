@@ -137,3 +137,8 @@ details.method > summary { cursor: pointer; display: flex; gap: 10px; align-item
 pre.math { white-space: pre-wrap; word-break: break-word; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font-size: 13px; line-height: 1.5; overflow-x: auto; }
 .warnline { color: #b35900; margin: 4px 0; } .dim { opacity: 0.5; }
 .tablewrap { overflow-x: auto; } .sources { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+
+.cite { font-size: 12px; padding: 1px 8px; border: 1px solid var(--line); border-radius: 10px; color: var(--text); text-decoration: none; white-space: nowrap; display: inline-flex; gap: 5px; align-items: center; margin-right: 4px; }
+.cite .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--muted); }
+.cite .dot.ok { background: #1a7f37; } .cite .dot.warn { background: #b35900; }
+.card.focused { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }

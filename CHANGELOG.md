@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.4.0
+
+New
+- **Grade-adjusted pace** for hills and trails (Minetti et al. 2002; the polynomial was checked against the
+  paper's full text). Treadmill and trail runs are now **included by default**; trail runs only while grade
+  adjustment is on. Each adjusted effort says how many real kilometres counted as how many flat kilometres.
+- **Max heart rate from your own data**: median of your three highest sustained peaks (glitches filtered), with the
+  working, the peaks table and a button to use it; the zone bands follow it. Age formula shown only as a comparison.
+- **Mark an activity as a race**; predictions are then checked against your real races.
+- **VO2max estimates** (VDOT from race performance, heart rate ratio), each with its working, range and limits, plus a
+  field for your watch's value to compare.
+- **References and credits**: one bibliography for the whole app. Every method names its source with a clickable
+  credit; the References page (and docs/references.md) show full citations, what each is used for, limits, and how well
+  each source was checked.
+
+Fixed
+- Removed a claim I could not verify: the zone bands are now described as a common five-zone convention, not "Garmin's
+  default zones" (Garmin's manuals say defaults come from your profile and can differ).
+
+Changed
+- Best efforts are recomputed once after updating (new grade-adjusted and heart-rate data); the Predict page shows progress.
+
 ## 0.3.0
 
 New
@@ -44,8 +66,8 @@ Docs
 New
 - **Heart-rate zone bands** behind the heart-rate line on run charts, in Strava's
   colours (Z1 grey, Z2 blue, Z3 green, Z4 orange, Z5 red), with a zone legend.
-  Zones are estimated from your max heart rate at 50/60/70/80/90% (Garmin's
-  defaults). Set your max heart rate in Settings, Preferences; blank uses the
+  Zones are estimated from your max heart rate using a common five-zone convention
+  (50/60/70/80/90%); Garmin's own boundaries may differ. Set your max heart rate in Settings, Preferences; blank uses the
   highest value in your activities. Garmin's own zone settings are also being
   collected for a later, exact version.
 

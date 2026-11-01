@@ -13,50 +13,19 @@ from datetime import UTC, datetime, timedelta
 from statistics import median
 from typing import Any
 
-from .efforts import DISTANCES, HALF, MARATHON, run_kind
+from . import references
+from .efforts import DISTANCES, HALF, MARATHON, cost_ratio, minetti_cost, run_kind
 
 TARGETS = [("5k", "5K", 5000.0), ("10k", "10K", 10000.0), ("half", "Half marathon", HALF),
            ("marathon", "Marathon", MARATHON)]
 RIEGEL_MIN_S = 3.5 * 60    # Riegel (1981): the formula was fitted to efforts of 3.5 to 230 minutes
 RIEGEL_MAX_S = 230 * 60
-CS_MIN_S, CS_MAX_S = 2 * 60, 40 * 60  # app heuristic for the critical-speed model, see CITATIONS
+CS_MIN_S, CS_MAX_S = 2 * 60, 40 * 60  # app heuristic for the critical-speed model (see references: poole2016)
 MAX_SPEED = 7.0
 T975 = {1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262,
         10: 2.228, 12: 2.179, 15: 2.131, 20: 2.086, 30: 2.042}
 
-CITATIONS = [
-    {"id": "riegel", "short": "Riegel (1981)",
-     "text": "Riegel PS. Athletic records and human endurance. American Scientist 69(3):285-290, 1981 "
-             "(first published as 'Time Predicting' in Runner's World, 1977). Power-law time/distance "
-             "relationship, fitted to efforts of roughly 3.5 to 230 minutes; the common exponent is 1.06.",
-     "url": "https://en.wikipedia.org/wiki/Peter_Riegel",
-     "note": "Checked against the abstract and secondary summaries, not the full text."},
-    {"id": "daniels", "short": "Daniels & Gilbert (1979)",
-     "text": "Daniels J, Gilbert J. Oxygen Power: Performance Tables for Distance Runners, 1979; "
-             "Daniels J. Daniels' Running Formula (Human Kinetics). Oxygen cost of running and the "
-             "fraction of VO2max a runner can hold as a function of race duration give a 'VDOT'.",
-     "url": "https://en.wikipedia.org/wiki/Jack_Daniels_(coach)",
-     "note": "Equation constants confirmed from secondary sources; this app reproduces the "
-             "commonly quoted values (a 20:00 5K gives a VDOT of 49.8)."},
-    {"id": "poole", "short": "Poole et al. (2016)",
-     "text": "Poole DC, Burnley M, Vanhatalo A, Rossiter HB, Jones AM. Critical power: an important "
-             "fatigue threshold in exercise physiology. Med Sci Sports Exerc 48(11):2320-2334, 2016. "
-             "The two-parameter critical power / critical speed model (speed asymptote plus a finite "
-             "reserve D').",
-     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5070974",
-     "note": "The 2 to 40 minute validity window used here is this app's own conservative rule of thumb."},
-    {"id": "fetch", "short": "Fetch Everyone analysis",
-     "text": "Analysis of 1,071 marathoners with at least five half and five full marathons: fewer than "
-             "5% matched Riegel (k = 1.06) predictions and many runners' effective exponent was nearer 1.15.",
-     "url": "https://www.fetcheveryone.com/article/marathon-time-prediction-37",
-     "note": "A website analysis of experienced runners, not a peer-reviewed study. Used only to set a "
-            "conservative scenario (k = 1.15)."},
-    {"id": "valencia", "short": "Valencia Marathon study (2025)",
-     "text": "Performance prediction equation for the Valencia Marathon based on time and pacing in the "
-             "half marathon: accuracy similar to the VDOT system but behaving differently by runner level.",
-     "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12856576/",
-     "note": "Read from the abstract only."},
-]
+CITATION_IDS = ["riegel1981", "daniels1979", "poole2016", "minetti2002", "fetch_everyone", "valencia2025", "kasiak2023"]
 
 CAVEATS = [
     "These are estimates built from your best efforts. A best effort inside a training run is not an "
@@ -139,11 +108,16 @@ def t_crit(df: int) -> float:
 
 
 # ---------------------------------------------------------------- efforts
-def load_efforts(conn: sqlite3.Connection, since: str, include_indoor: bool, include_trail: bool) -> list[dict[str, Any]]:
+def load_efforts(conn: sqlite3.Connection, since: str, include_indoor: bool, include_trail: bool,
+                 use_gap: bool = True) -> list[dict[str, Any]]:
+    table = "best_efforts_gap" if use_gap else "best_efforts"
+    extra = "be.covered_m AS covered_m" if use_gap else "be.distance_m AS covered_m"
     rows = conn.execute(
-        "SELECT be.activity_id, be.distance_m, be.time_s, be.avg_hr, be.ascent_m, be.gap_s, a.start_time, "
-        "a.sport, a.name, (ex.activity_id IS NOT NULL) AS excluded FROM best_efforts be "
-        "JOIN activities a ON a.id=be.activity_id LEFT JOIN effort_exclusions ex ON ex.activity_id=be.activity_id "
+        f"SELECT be.activity_id, be.distance_m, be.time_s, be.avg_hr, be.ascent_m, be.gap_s, {extra}, a.start_time, "
+        "a.sport, a.name, (ex.activity_id IS NOT NULL) AS excluded, (rm.activity_id IS NOT NULL) AS is_race "
+        f"FROM {table} be JOIN activities a ON a.id=be.activity_id "
+        "LEFT JOIN effort_exclusions ex ON ex.activity_id=be.activity_id "
+        "LEFT JOIN race_marks rm ON rm.activity_id=be.activity_id "
         "WHERE a.start_time >= ? ORDER BY be.distance_m, be.time_s", (since,)).fetchall()
     out = []
     for r in rows:
@@ -153,7 +127,9 @@ def load_efforts(conn: sqlite3.Connection, since: str, include_indoor: bool, inc
             reasons.append("excluded by you")
         if kind == "indoor" and not include_indoor:
             reasons.append("treadmill/indoor (turned off)")
-        if kind == "trail" and not include_trail:
+        if kind == "trail" and not use_gap:
+            reasons.append("trail run (needs grade-adjusted pace, which is off)")
+        elif kind == "trail" and not include_trail:
             reasons.append("trail run (turned off)")
         if r["distance_m"] / r["time_s"] > MAX_SPEED:
             reasons.append("implausibly fast (likely a GPS glitch)")
@@ -161,10 +137,16 @@ def load_efforts(conn: sqlite3.Connection, since: str, include_indoor: bool, inc
             flags.append("includes pauses (time is conservative)")
         if kind != "road":
             flags.append(kind)
+        adj = ""
+        if use_gap and r["covered_m"] and abs(r["covered_m"] - r["distance_m"]) > 0.005 * r["distance_m"]:
+            adj = (f"Grade-adjusted: {r['covered_m'] / 1000:.2f} km actually run with {r['ascent_m'] or 0:.0f} m of climbing "
+                   f"counts as {r['distance_m'] / 1000:.2f} km of flat running (Minetti cost ratios).")
+            flags.append("grade-adjusted")
         out.append({"activity_id": r["activity_id"], "date": r["start_time"], "name": r["name"],
                     "sport": r["sport"], "kind": kind, "distance_m": r["distance_m"], "time_s": r["time_s"],
                     "pace_s_per_km": r["time_s"] / (r["distance_m"] / 1000), "avg_hr": r["avg_hr"],
-                    "ascent_m": r["ascent_m"], "flags": flags, "used": not reasons, "not_used_because": reasons})
+                    "ascent_m": r["ascent_m"], "flags": flags, "used": not reasons, "not_used_because": reasons,
+                    "is_race": bool(r["is_race"]), "covered_m": r["covered_m"], "adjustment": adj})
     return out
 
 
@@ -194,14 +176,14 @@ def method_riegel(target: float, sources: list[dict[str, Any]], k: float, mid: s
         f"T2 = {near['time_s']:.0f} x {(target / near['distance_m']) ** k:.4f} = {t:.0f} s = {fmt_time(t)}",
     ]
     by_source = [{"from": brief(s), "time_s": riegel(s["time_s"], s["distance_m"], target, k)} for s in sources]
-    return {"id": mid, "name": name, "time_s": t, "scenario": scenario, "citation": "fetch" if scenario else "riegel",
+    return {"id": mid, "name": name, "time_s": t, "scenario": scenario, "citation": "fetch_everyone" if scenario else "riegel1981",
             "source_effort": brief(near), "steps": steps, "by_source": by_source, "note": note,
             "status": "ok", "warnings": []}
 
 
 def method_fit(target: float, sources: list[dict[str, Any]]) -> dict[str, Any]:
     pts = [(math.log(s["distance_m"]), math.log(s["time_s"])) for s in sources]
-    base = {"id": "riegel_fit", "name": "Your own power law (fitted exponent)", "citation": "riegel",
+    base = {"id": "riegel_fit", "name": "Your own power law (fitted exponent)", "citation": "riegel1981",
             "scenario": False, "warnings": []}
     if len(sources) < 3:
         return base | {"time_s": None, "status": "not_enough_data", "steps": [
@@ -240,7 +222,7 @@ def method_fit(target: float, sources: list[dict[str, Any]]) -> dict[str, Any]:
 
 def method_cs(target: float, pool: list[dict[str, Any]]) -> dict[str, Any]:
     pts = [s for s in pool if CS_MIN_S <= s["time_s"] <= CS_MAX_S]
-    base = {"id": "critical_speed", "name": "Critical speed (two-parameter model)", "citation": "poole",
+    base = {"id": "critical_speed", "name": "Critical speed (two-parameter model)", "citation": "poole2016",
             "scenario": False, "warnings": []}
     if len(pts) < 3:
         return base | {"time_s": None, "status": "not_enough_data", "steps": [
@@ -288,7 +270,7 @@ def method_vdot(target: float, sources: list[dict[str, Any]]) -> dict[str, Any]:
         f"Find the time at which a VDOT of {v:.1f} gives exactly that on {target:.1f} m (solved numerically): "
         f"{t:.0f} s = {fmt_time(t)}",
     ]
-    return {"id": "vdot", "name": "VDOT (Daniels/Gilbert)", "time_s": t, "citation": "daniels", "scenario": False,
+    return {"id": "vdot", "name": "VDOT (Daniels/Gilbert)", "time_s": t, "citation": "daniels1979", "scenario": False,
             "source_effort": brief(near), "steps": steps, "status": "ok", "warnings": [], "vdot": v,
             "note": "VDOT is a fitness score from race performance, not a measured VO2max."}
 
@@ -358,40 +340,85 @@ def local_best(e: dict[str, Any], efforts: list[dict[str, Any]], days: int = 60)
     return True
 
 
+def anchor_row(target: float, a: dict[str, Any], efforts: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Predict one past effort using only efforts from the 1 to 90 days before it."""
+    d = datetime.fromisoformat(a["date"])
+    prior = [e for e in efforts if e["used"] and e["distance_m"] != target and e["activity_id"] != a["activity_id"]
+             and RIEGEL_MIN_S <= e["time_s"] <= RIEGEL_MAX_S
+             and timedelta(days=1) <= d - datetime.fromisoformat(e["date"]) <= timedelta(days=90)]
+    src = list(best_per_distance(prior).values())
+    if not src:
+        return None
+    row: dict[str, Any] = {"on": a["date"][:10], "activity_id": a["activity_id"], "name": a["name"],
+                           "actual_s": a["time_s"], "is_race": a.get("is_race", False), "predictions": {},
+                           "sources": [brief(s_) for s_ in src]}
+    for mid, fn in (("riegel_106", lambda: method_riegel(target, src, 1.06, "x", "x", False, "")),
+                    ("riegel_fit", lambda: method_fit(target, src)), ("vdot", lambda: method_vdot(target, src))):
+        m = fn()
+        if m.get("time_s"):
+            row["predictions"][mid] = {"time_s": m["time_s"], "error_pct": (m["time_s"] - a["time_s"]) / a["time_s"] * 100}
+    return row if row["predictions"] else None
+
+
 def backtest(target: float, efforts: list[dict[str, Any]]) -> dict[str, Any]:
-    anchors = [e for e in efforts if e["used"] and e["distance_m"] == target and local_best(e, efforts)]
+    at_target = [e for e in efforts if e["used"] and e["distance_m"] == target]
+    races = [e for e in at_target if e.get("is_race")]
+    use_races = len(races) >= 3
+    anchors = races if use_races else [e for e in at_target if local_best(e, efforts)]
     errs: dict[str, list[float]] = {"riegel_106": [], "riegel_fit": [], "vdot": []}
     rows = []
     for a in anchors:
-        d = datetime.fromisoformat(a["date"])
-        prior = [e for e in efforts if e["used"] and e["distance_m"] != target and RIEGEL_MIN_S <= e["time_s"] <= RIEGEL_MAX_S
-                 and timedelta(days=1) <= d - datetime.fromisoformat(e["date"]) <= timedelta(days=90)]
-        src = list(best_per_distance(prior).values())
-        if not src:
-            continue
-        row = {"on": a["date"][:10], "actual_s": a["time_s"], "predictions": {}}
-        for mid, fn in (("riegel_106", lambda: method_riegel(target, src, 1.06, "x", "x", False, "")),
-                        ("riegel_fit", lambda: method_fit(target, src)), ("vdot", lambda: method_vdot(target, src))):
-            m = fn()
-            if m.get("time_s"):
-                err = (m["time_s"] - a["time_s"]) / a["time_s"] * 100
-                errs[mid].append(err)
-                row["predictions"][mid] = {"time_s": m["time_s"], "error_pct": err}
-        if row["predictions"]:
+        row = anchor_row(target, a, efforts)
+        if row:
             rows.append(row)
+            for mid, p_ in row["predictions"].items():
+                errs[mid].append(p_["error_pct"])
     summary = {}
     for mid, e in errs.items():
         if e:
-            s = sorted(e)
+            s_ = sorted(e)
             summary[mid] = {"n": len(e), "median_error_pct": median(e),
-                            "p25": s[int(0.25 * (len(s) - 1))], "p75": s[int(0.75 * (len(s) - 1))],
+                            "p25": s_[int(0.25 * (len(s_) - 1))], "p75": s_[int(0.75 * (len(s_) - 1))],
                             "within_3pct": sum(abs(x) <= 3 for x in e) / len(e),
                             "within_5pct": sum(abs(x) <= 5 for x in e) / len(e)}
-    return {"summary": summary, "checks": rows[-12:], "n_anchors": len(anchors),
-            "how": "Each check takes one of your own efforts at this distance that was your fastest within 60 days "
-                   "either side (a stand-in for 'raced it'), predicts it using only efforts from the 90 days before, "
-                   "and reports (predicted - actual) / actual. Negative = predicted faster than you ran. Your best "
-                   "efforts include training runs that were not all-out, so expect an optimistic (negative) bias."}
+    race_rows = [r for r in (anchor_row(target, a, efforts) for a in races) if r]
+    basis = ("Each check takes one of YOUR MARKED RACES at this distance" if use_races else
+             "Each check takes one of your own efforts at this distance that was your fastest within 60 days either "
+             "side (a stand-in for 'raced it'; mark real races on their activity page and these will use them once "
+             "you have 3)")
+    return {"summary": summary, "checks": rows[-12:], "races": race_rows, "n_anchors": len(anchors),
+            "basis": "races" if use_races else "local_bests",
+            "how": basis + ", predicts it using only efforts from the 90 days before, and reports "
+                   "(predicted - actual) / actual. Negative = predicted faster than you ran. "
+                   + ("" if use_races else "Your best efforts include training runs that were not all-out, so expect an "
+                      "optimistic (negative) bias.")}
+
+
+def gap_model() -> dict[str, Any]:
+    pts = [-0.20, -0.10, -0.05, 0.0, 0.05, 0.10, 0.20]
+    return {
+        "name": "Grade-adjusted pace (Minetti et al. 2002 energy cost of running)",
+        "steps": [
+            "A metre of running costs different energy on different slopes. Minetti et al. measured this on a "
+            "treadmill and fitted a polynomial: cost(i) = 155.4 i^5 - 30.4 i^4 - 43.3 i^3 + 46.3 i^2 + 19.5 i + 3.6 "
+            "(joules per kg per metre, i = slope as a fraction, so 0.10 = 10% uphill).",
+            "Cost ratio = cost(i) / cost(0) = cost(i) / 3.6. Uphill ratios are above 1, gentle downhills below 1.",
+            "For every step of a run the app multiplies the real distance by the ratio for that step's grade. The total "
+            "is 'flat-equivalent distance': the flat running that would cost the same energy.",
+            "Best efforts are then found on that axis, so a 5 km effort means 5 km of flat-equivalent running, and its "
+            "time is your grade-adjusted time.",
+            f"Grade is measured from altitude over +/- 25 m of running and capped at +/-{int(0.30 * 100)}%, because "
+            "steeper readings are almost always altitude noise. Treadmill runs have no altitude, so they are unchanged.",
+        ],
+        "table": [{"grade_pct": g * 100, "cost_j_per_kg_m": minetti_cost(g), "ratio": cost_ratio(g)} for g in pts],
+        "citation": "minetti2002", "citations": references.get(["minetti2002"]),
+        "limits": "The polynomial is exactly the one in the paper (checked against the full text). It was fitted to 10 "
+                  "elite mountain-endurance men running on a smooth treadmill. The measured level cost was 3.40 +/- 0.24 "
+                  "J/kg/m while the polynomial's constant is 3.6; the authors found downhill running about 40% cheaper "
+                  "than earlier data from sedentary people and caution that rougher ground than a treadmill raises the "
+                  "cost. So adjusted times are approximate: downhill credit may be generous for runners not trained on "
+                  "descents, and soft, rocky or technical trail costs more than the model says.",
+    }
 
 
 def training_context(conn: sqlite3.Connection, today: datetime) -> dict[str, Any]:
@@ -405,12 +432,12 @@ def training_context(conn: sqlite3.Connection, today: datetime) -> dict[str, Any
                     "marathon or marathon prediction."}
 
 
-def build(conn: sqlite3.Connection, window_days: int = 365, include_indoor: bool = False,
-          include_trail: bool = False, now: datetime | None = None) -> dict[str, Any]:
+def build(conn: sqlite3.Connection, window_days: int = 365, include_indoor: bool = True,
+          include_trail: bool = True, use_gap: bool = True, now: datetime | None = None) -> dict[str, Any]:
     now = now or datetime.now(UTC)
     since = (now - timedelta(days=window_days)).isoformat()
     # the back-test looks further back than the prediction window
-    all_efforts = load_efforts(conn, (now - timedelta(days=max(window_days, 1095))).isoformat(), include_indoor, include_trail)
+    all_efforts = load_efforts(conn, (now - timedelta(days=max(window_days, 1095))).isoformat(), include_indoor, include_trail, use_gap)
     efforts = [e for e in all_efforts if e["date"] >= since]
     targets = []
     for key, label, d in TARGETS:
@@ -420,7 +447,10 @@ def build(conn: sqlite3.Connection, window_days: int = 365, include_indoor: bool
     best = best_per_distance(efforts)
     return {"generated_at": now.isoformat(timespec="seconds"),
             "mission": "Use your data to train smarter, and always show the math.",
-            "settings": {"window_days": window_days, "include_indoor": include_indoor, "include_trail": include_trail},
+            "settings": {"window_days": window_days, "include_indoor": include_indoor, "include_trail": include_trail,
+                         "use_gap": use_gap},
+            "gap_model": gap_model(),
             "efforts": [e for e in efforts if e["distance_m"] in DISTANCES],
             "sources": [brief(e) | {"pace_s_per_km": e["pace_s_per_km"]} for _, e in sorted(best.items())],
-            "targets": targets, "context": training_context(conn, now), "citations": CITATIONS, "caveats": CAVEATS}
+            "targets": targets, "context": training_context(conn, now), "citations": references.get(CITATION_IDS),
+            "caveats": CAVEATS}

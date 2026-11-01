@@ -30,6 +30,7 @@ export default function ActivityDetail({ id, back }: { id: number; back: () => v
   const [detail, setDetail] = useState<Detail | null>(null);
   const [samples, setSamples] = useState<SamplesData | null>(null);
   const [hover, setHover] = useState<number | null>(null);
+  const [isRace, setIsRace] = useState(false);
   const [zones, setZones] = useState<HrZone[]>([]);
   const [zoneNote, setZoneNote] = useState("");
   const [error, setError] = useState("");
@@ -40,7 +41,7 @@ export default function ActivityDetail({ id, back }: { id: number; back: () => v
     api<{ hr_zones: HrZone[]; hr_zone_note: string }>("/preferences")
       .then((p) => { setZones(p.hr_zones); setZoneNote(p.hr_zone_note); })
       .catch(() => undefined);
-    api<Detail>(`/activities/${id}`).then(setDetail).catch((e) => setError(e.message));
+    api<Detail>(`/activities/${id}`).then((d) => { setDetail(d); setIsRace(!!(d as unknown as { is_race?: boolean }).is_race); }).catch((e) => setError(e.message));
     api<SamplesData>(`/activities/${id}/samples?max_points=1500`).then(setSamples).catch((e) => setError(e.message));
   }, [id]);
 
@@ -93,6 +94,8 @@ export default function ActivityDetail({ id, back }: { id: number; back: () => v
             {new Date(detail.start_time).toLocaleString()} · {detail.sport ?? "unknown sport"} · {detail.source}
           </span>
         </div>
+        <button onClick={async () => { await api(`/activities/${id}/race`, isRace ? "DELETE" : "POST"); setIsRace(!isRace); }}
+          title="Races are used to check how well predictions would have done">{isRace ? "Unmark as race" : "Mark as a race"}</button>
         {hasGps && <a className="button" href={`/api/activities/${id}/gpx`} download>Download GPX</a>}
       </div>
 

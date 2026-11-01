@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { api, GarminStatus } from "../api";
 import Backups from "../components/Backups";
+import Cite from "../components/Cite";
+import MaxHr from "../components/MaxHr";
 import { intervalLabel, useSync } from "../lib/useSync";
 
 const KEY_PAGE = "https://connect.garmin.com/app/settings/personalApiToken";
@@ -14,10 +16,12 @@ function Preferences() {
   const [auto, setAuto] = useState<number | null>(null);
   const [zones, setZones] = useState<{ zone: number; low: number; high: number }[]>([]);
   const [hrError, setHrError] = useState("");
-  type PrefData = { default_sport: string; sport_options: string[]; max_hr: number | null; max_hr_source: string | null; max_hr_auto: number | null; hr_zones: { zone: number; low: number; high: number }[] };
+  const [birthYear, setBirthYear] = useState("");
+  type PrefData = { default_sport: string; sport_options: string[]; max_hr: number | null; max_hr_source: string | null; max_hr_auto: number | null; birth_year: number | null; hr_zones: { zone: number; low: number; high: number }[] };
   const apply = (p: PrefData) => {
     setSport(p.default_sport); setOptions(p.sport_options); setAuto(p.max_hr_auto);
     setMaxHr(p.max_hr_source === "custom" && p.max_hr ? String(p.max_hr) : ""); setZones(p.hr_zones);
+    setBirthYear(p.birth_year ? String(p.birth_year) : "");
   };
   useEffect(() => { api<PrefData>("/preferences").then(apply).catch(() => undefined); }, []);
   async function saveMaxHr() {
@@ -59,6 +63,13 @@ function Preferences() {
         estimates at 50/60/70/80/90% of max heart rate; your Garmin watch may use different zone boundaries.
       </span>
       {hrError && <span className="error">{hrError}</span>}
+      <MaxHr onApplied={() => api<PrefData>("/preferences").then(apply)} />
+      <label>Year of birth (optional)
+        <input type="number" min={1920} max={2020} value={birthYear} onChange={(e) => setBirthYear(e.target.value)}
+               onBlur={async () => apply(await api<PrefData>("/preferences", "PUT", { birth_year: birthYear.trim() ? Number(birthYear) : null }))}
+               placeholder="only used for an age-formula comparison" style={{ maxWidth: 260 }} />
+      </label>
+      <span className="muted">Zone convention: a common five-zone split of max heart rate, not necessarily your Garmin's boundaries (<Cite id="garmin_zones" />).</span>
     </section>
   );
 }
@@ -215,6 +226,7 @@ export default function Settings({ onRestored }: { onRestored: () => void }) {
     </section>
     <Preferences />
     <Backups onRestored={onRestored} />
+    <p className="muted" style={{ textAlign: "center" }}><a href="#/references">Sources and credits</a></p>
     <Version />
     </div>
   );

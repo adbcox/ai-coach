@@ -29,7 +29,8 @@ This project was largely written with AI assistance ("vibe-coded") and has not h
 - **Garmin sync**: your whole activity history (with per-second data) plus daily health data (sleep, HRV, Body Battery, stress, resting heart rate, steps, ...), kept up to date automatically (interval set in Settings; quick sync button on the dashboard).
 - **Dashboard**: last 14 days of distance by sport, rolling weekly mileage (km per week) and rolling 7-day longest run, over the last 4 weeks. Opens on the sport you choose in Settings (Running by default).
 - **Activities and run detail**: filterable list; per-run map, pace/speed, heart rate (with zone bands), elevation, power and cadence charts linked to the map, heart-rate zone time, running dynamics, GPX download.
-- **Race predictions**: 5K, 10K, half marathon and marathon from your own best efforts, using several established methods side by side. Each number opens into the formula with your numbers filled in, the uncertainty, a back-test against your own history, and the sources. See [how it works](docs/predictions.md).
+- **Race predictions**: 5K, 10K, half marathon and marathon from your own best efforts (hills and trail handled with grade-adjusted pace; treadmill included; mark real races to check the predictions against them), using several established methods side by side. Each number opens into the formula with your numbers filled in, the uncertainty, a back-test against your own history, and the sources. See [how it works](docs/predictions.md).
+- **Max heart rate and VO2max**: max heart rate estimated from your own recorded peaks (not a formula), and VO2max estimated several ways side by side, each with its working, range and limits.
 - **Recovery**: sleep score and duration, HRV against your balanced range, resting heart rate, Body Battery and stress, 30 days to 1 year.
 - **On your phone**: the whole app works in a phone browser, with a bottom tab bar and charts you can scrub with a finger (an installable app comes later).
 - **Backups**: one-click portable backup and restore (move to a new machine), plus scheduled uploads to an SMB network share. Your Garmin key is encrypted at rest and never included in scheduled backups.
@@ -37,16 +38,23 @@ This project was largely written with AI assistance ("vibe-coded") and has not h
 
 ## Coming next
 
-1. VO2max estimates that show their working, and literature ingest: upload studies, videos and articles; kept as an actionable summary, full-text Markdown and the original source
+1. A library for your own references and data ingest (Markdown files you can read in the app and on disk): upload studies, videos and articles; kept as an actionable summary, full-text Markdown and the original source
 2. Heart-rate zones from your Garmin settings, a first training-load view, "rebuild from stored files"
 3. More data sources (Strava, COROS) with de-duplication
 4. Agent connectivity (REST + MCP) so any AI can read your data, then mobile layout and an installable web app
+
+## Credits and sources
+
+The app builds on published research, and it says so. Every method names its source (a clickable credit in the app), and the
+**References** page and [docs/references.md](docs/references.md) list each one with the full citation, what the app uses it for,
+its limits, and an honest label for how well it was checked (full text read, abstract only, or secondary sources).
 
 ## Docs
 
 - [Install guide](docs/install.md) (Docker, Unraid, first run)
 - [Roadmap](docs/roadmap.md) and [changelog](CHANGELOG.md)
-- [Race predictions: how they work](docs/predictions.md)
+- [Race predictions, max heart rate and VO2max: how they work](docs/predictions.md)
+- [References and credits](docs/references.md)
 - [Garmin Personal API](docs/garmin.md): key setup, token exchange, data coverage, terms notes
 - [Ingest area](docs/ingest.md): tiers, retrieval order, tooling, templates
 

@@ -16,8 +16,9 @@ samples), takes the elapsed time, and keeps the smallest. So a 5K can be found i
 and time lost to pauses.
 
 Rules, all visible on the page:
-- Treadmill/indoor runs and trail runs are **left out by default** (their distance is
-  less reliable, or terrain distorts pace); switches turn them on.
+- Treadmill/indoor runs and trail runs are **included by default**. Trail runs are only used while
+  grade-adjusted pace is on (below); switches turn either off. Treadmill distances come from a foot pod or watch
+  estimate and have no incline data, so they are used as recorded.
 - An effort faster than 7 m/s (2:23 per km) is treated as a **GPS glitch** and ignored.
 - You can **leave out** any effort and watch the prediction change.
 - Efforts are taken from the **last 3, 6, 12 or 24 months** (your choice); the fastest per
@@ -36,6 +37,22 @@ Rules, all visible on the page:
 | Conservative scenario, k = 1.15 | Riegel with k = 1.15 | Fetch Everyone analysis (not peer reviewed) |
 
 Every method prints its own steps with your numbers substituted.
+
+### Grade-adjusted pace (hills, trail)
+
+Treadmill and trail runs are included by default; trail runs only while grade-adjusted pace (GAP) is on.
+For every step of a run the app measures the grade (altitude change over +/- 25 m, capped at +/-30% because
+steeper readings are almost always altitude noise) and multiplies the real distance by Minetti's energy-cost
+ratio for that grade: cost(i) = 155.4 i^5 - 30.4 i^4 - 43.3 i^3 + 46.3 i^2 + 19.5 i + 3.6 (J per kg per metre,
+i = slope as a fraction), ratio = cost(i) / 3.6. The sum is the **flat-equivalent distance**, and best efforts
+are found on that axis. Treadmill runs have no altitude, so they are unchanged. The Predict page shows the
+cost table and, for every adjusted effort, how many real kilometres counted as how many flat kilometres.
+
+Source: Minetti AE, Moia C, Roi GS, Susta D, Ferretti G. Energy cost of walking and running at extreme uphill and
+downhill slopes. *J Appl Physiol* 93:1039-1046, 2002 (polynomial verified against the full text). Limits, from the
+paper: 10 elite mountain-endurance men on a smooth treadmill; measured level cost 3.40 +/- 0.24 versus 3.6 from
+the fit; downhill running was about 40% cheaper than earlier data from sedentary people; rougher ground than a
+treadmill raises the cost. Adjusted times are therefore approximate.
 
 ## 3. The headline
 
@@ -56,18 +73,42 @@ can check it by hand.
 - **Training context**: for the half and marathon the page shows your average weekly
   distance and longest run over 8 weeks. No adjustment is made for them.
 
-## 5. Known limits
+## 5. Marked races
+
+Mark an activity as a race on its page. Once you have three or more at a distance, the back-test
+uses them (instead of "fastest within 60 days") and lists each race with what each method would
+have predicted from the 90 days before it.
+
+## 6. Max heart rate from your own data
+
+For each activity the app drops heart-rate samples outside 40 to 230 bpm, drops one-sample spikes
+(more than 20 bpm from both neighbours while the neighbours agree), and takes the highest 15-second
+rolling average. Your estimate is the **median of your three highest activity peaks** in the last two
+years, so a single glitch cannot set it; with fewer than three it uses the highest and says the confidence
+is low. The age formula of Tanaka, Monahan & Seals (208 - 0.7 x age) is shown only as a sanity check.
+Age formulas carry roughly 9 to 10 bpm of individual error in endurance athletes (Kasiak et al. 2023).
+Zone bands use a common five-zone convention (50/60/70/80/90% of max); this is not claimed to be your
+Garmin's own boundaries.
+
+## 7. VO2max estimates
+
+Several methods side by side, none a measured VO2max: VDOT from your race performance (a performance
+index), and the heart rate ratio method 15.3 x HRmax / HRrest (Uth et al. 2004; constant from 10 well-trained
+men; +/- 4.7 ml/kg/min shown; resting-heart-rate methods tend to read high, Molina-Garcia et al. 2022).
+You can enter your watch's value to compare, since Garmin does not share it through its Personal API.
+
+## 8. Known limits
 
 - Predictions are least reliable far beyond the distances you have run, especially the
   marathon, which depends on endurance training that shorter efforts do not capture.
-- Garmin's own splits are not used as a cross-check yet, and there is no hill (grade)
-  adjustment.
+- Garmin's own splits are not used as a cross-check yet.
 - Sources were checked from abstracts and secondary summaries, not the full papers.
 - Not medical advice.
 
 ## Sources
 
 - Riegel PS. Athletic records and human endurance. *American Scientist* 69(3):285-290, 1981.
+- Minetti AE, Moia C, Roi GS, Susta D, Ferretti G. Energy cost of walking and running at extreme uphill and downhill slopes. *J Appl Physiol* 93:1039-1046, 2002. <https://doi.org/10.1152/japplphysiol.01177.2001>
 - Daniels J, Gilbert J. *Oxygen Power: Performance Tables for Distance Runners*, 1979; Daniels J. *Daniels' Running Formula*.
 - Poole DC, Burnley M, Vanhatalo A, Rossiter HB, Jones AM. Critical power: an important fatigue threshold in exercise physiology. *Med Sci Sports Exerc* 48(11):2320-2334, 2016. <https://pmc.ncbi.nlm.nih.gov/articles/PMC5070974>
 - Fetch Everyone marathon-prediction analysis (not peer reviewed). <https://www.fetcheveryone.com/article/marathon-time-prediction-37>

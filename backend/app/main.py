@@ -23,11 +23,14 @@ from . import (
     db,
     diagnostics,
     efforts,
+    maxhr,
     predict,
     recovery,
+    references,
     schedule,
     security,
     smb,
+    vo2max,
 )
 from .config import Settings
 from .crypto import SecretBox
@@ -68,6 +71,8 @@ SPORT_GROUPS = ["All", "Running", "Cycling", "Hiking", "Other"]
 class Preferences(BaseModel):
     default_sport: str | None = None
     max_hr: int | None = Field(default=None, ge=100, le=230)  # null clears (use automatic)
+    birth_year: int | None = Field(default=None, ge=1920, le=2020)
+    watch_vo2max: float | None = Field(default=None, ge=15, le=90)
 
 
 class BackupRequest(BaseModel):
@@ -373,7 +378,7 @@ def create_app(
             backups.lock.release()
             manager.release_exclusive()
 
-    ZONE_EDGES = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]  # Garmin's default zones, % of max heart rate
+    ZONE_EDGES = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]  # a common five-zone convention, % of max heart rate (not verified as Garmin's own)
 
     def read_prefs(conn) -> dict:
         def pref(key: str) -> str | None:
@@ -383,15 +388,19 @@ def create_app(
         sport = pref("pref_default_sport")
         sport = sport if sport in SPORT_GROUPS else "Running"
         custom = pref("pref_max_hr")
-        auto = conn.execute("SELECT MAX(max_hr) AS m FROM activities WHERE max_hr BETWEEN 100 AND 230"
-                            ).fetchone()["m"]
+        auto = maxhr.estimate(conn)["estimate"] or conn.execute(
+            "SELECT MAX(max_hr) AS m FROM activities WHERE max_hr BETWEEN 100 AND 230").fetchone()["m"]
         max_hr = int(custom) if custom else (int(auto) if auto else None)
         zones = ([{"zone": i + 1, "low": round(max_hr * ZONE_EDGES[i]),
                    "high": round(max_hr * ZONE_EDGES[i + 1])} for i in range(5)] if max_hr else [])
         return {"default_sport": sport, "sport_options": SPORT_GROUPS, "max_hr": max_hr,
                 "max_hr_source": "custom" if custom else ("auto" if auto else None),
                 "max_hr_auto": int(auto) if auto else None, "hr_zones": zones,
-                "hr_zone_note": "Estimated from max heart rate at 50/60/70/80/90% (Garmin's default zones)."}
+                "birth_year": int(pref("pref_birth_year")) if pref("pref_birth_year") else None,
+                "watch_vo2max": float(pref("pref_watch_vo2max")) if pref("pref_watch_vo2max") else None,
+                "hr_zone_note": "Estimated from max heart rate using a common five-zone convention (50/60/70/80/90%). Your "
+                                "Garmin's own boundaries are set from your profile and may differ.",
+                "hr_zone_citation": "garmin_zones"}
 
     @app.get("/api/preferences")
     def prefs_get(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
@@ -411,14 +420,60 @@ def create_app(
             else:
                 conn.execute("INSERT INTO sync_state (key, value) VALUES ('pref_max_hr', ?) "
                              "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(body.max_hr),))
+        for field, key in (("birth_year", "pref_birth_year"), ("watch_vo2max", "pref_watch_vo2max")):
+            if field in fields:
+                value = getattr(body, field)
+                if value is None:
+                    conn.execute("DELETE FROM sync_state WHERE key=?", (key,))
+                else:
+                    conn.execute("INSERT INTO sync_state (key, value) VALUES (?, ?) "
+                                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, str(value)))
+                if field == "watch_vo2max" and value is not None:
+                    conn.execute("INSERT INTO sync_state (key, value) VALUES ('pref_watch_vo2max_date', ?) "
+                                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (_now()[:10],))
         conn.commit()
         return read_prefs(conn)
 
+    @app.get("/api/references")
+    def references_list(_=Depends(current_user)) -> dict:
+        return {"verified_levels": references.VERIFIED, "references": references.all_references()}
+
+    @app.get("/api/maxhr")
+    def maxhr_get(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        return maxhr.estimate(conn) | {"scan_pending": len(efforts.pending(conn))}
+
+    @app.post("/api/maxhr/apply")
+    def maxhr_apply(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        est = maxhr.estimate(conn)["estimate"]
+        if not est:
+            raise HTTPException(400, "There is not enough heart-rate data to estimate a maximum yet.")
+        conn.execute("INSERT INTO sync_state (key, value) VALUES ('pref_max_hr', ?) "
+                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(est),))
+        conn.commit()
+        return read_prefs(conn)
+
+    @app.get("/api/vo2max")
+    def vo2max_get(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        return vo2max.build(conn)
+
+    @app.post("/api/activities/{activity_id}/race")
+    def race_mark(activity_id: int, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        get_activity(conn, activity_id)
+        conn.execute("INSERT OR IGNORE INTO race_marks (activity_id, marked_at) VALUES (?, ?)", (activity_id, _now()))
+        conn.commit()
+        return {"is_race": True}
+
+    @app.delete("/api/activities/{activity_id}/race")
+    def race_unmark(activity_id: int, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        conn.execute("DELETE FROM race_marks WHERE activity_id=?", (activity_id,))
+        conn.commit()
+        return {"is_race": False}
+
     @app.get("/api/predictions")
-    def predictions(window_days: int = 365, include_indoor: bool = False, include_trail: bool = False,
-                    _=Depends(current_user), conn=Depends(get_conn)) -> dict:
+    def predictions(window_days: int = 365, include_indoor: bool = True, include_trail: bool = True,
+                    use_gap: bool = True, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
         window_days = max(30, min(window_days, 1825))
-        result = predict.build(conn, window_days, include_indoor, include_trail)
+        result = predict.build(conn, window_days, include_indoor, include_trail, use_gap)
         result["scan"] = {"running": scanner.running, "done": scanner.done, "total": scanner.total,
                           "pending": len(efforts.pending(conn))}
         return result
@@ -482,6 +537,7 @@ def create_app(
             out["summary"] = _json.loads(row["summary_json"] or "null")
         except ValueError:
             out["summary"] = None
+        out["is_race"] = conn.execute("SELECT 1 FROM race_marks WHERE activity_id=?", (activity_id,)).fetchone() is not None
         return out
 
     @app.get("/api/activities/{activity_id}/samples")

@@ -138,6 +138,8 @@ def insert_run(conn, aid, sport, start, dist_time, kind_sample=None):
     for d, t in dist_time:
         conn.execute("INSERT INTO best_efforts (activity_id, distance_m, time_s, start_offset_s, avg_hr, ascent_m, gap_s) "
                      "VALUES (?, ?, ?, 0, 150, 5, 0)", (aid, d, t))
+        conn.execute("INSERT INTO best_efforts_gap (activity_id, distance_m, time_s, start_offset_s, avg_hr, ascent_m, "
+                     "gap_s, covered_m) VALUES (?, ?, ?, 0, 150, 5, 0, ?)", (aid, d, t, d))
 
 
 @pytest.fixture
@@ -159,7 +161,7 @@ def test_api_requires_login(client):
 
 
 def test_api_predictions_end_to_end(seeded):
-    r = seeded.get("/api/predictions").json()
+    r = seeded.get("/api/predictions?include_indoor=false").json()
     assert r["mission"].startswith("Use your data to train smarter")
     keys = [t["key"] for t in r["targets"]]
     assert keys == ["5k", "10k", "half", "marathon"]
@@ -170,24 +172,28 @@ def test_api_predictions_end_to_end(seeded):
     indoor = [e for e in r["efforts"] if e["activity_id"] == 103][0]
     assert indoor["used"] is False and "treadmill" in indoor["not_used_because"][0]
     assert five["actual_best"]["activity_id"] != 103
-    assert {c["id"] for c in r["citations"]} >= {"riegel", "daniels", "poole"}
+    default = seeded.get("/api/predictions").json()  # treadmill, trail and grade adjustment are on by default
+    assert default["settings"] == {"window_days": 365, "include_indoor": True, "include_trail": True, "use_gap": True}
+    assert next(e for e in default["efforts"] if e["activity_id"] == 103)["used"] is True
+    assert default["gap_model"]["table"] and "Minetti" in default["gap_model"]["name"]
+    assert {c["id"] for c in r["citations"]} >= {"riegel1981", "daniels1979", "poole2016", "minetti2002"}
     assert r["context"]["weeks"] == 8 and r["caveats"]
     assert "scan" in r
 
 
 def test_api_toggles_and_exclusions_change_the_result(seeded):
-    base = seeded.get("/api/predictions").json()
+    base = seeded.get("/api/predictions?include_indoor=false").json()
     ten = next(t for t in base["targets"] if t["key"] == "10k")
     seeded.post("/api/efforts/102/exclude")
-    after = seeded.get("/api/predictions").json()
+    after = seeded.get("/api/predictions?include_indoor=false").json()
     ten2 = next(t for t in after["targets"] if t["key"] == "10k")
     assert ten2["actual_best"]["activity_id"] == 101 and ten2["actual_best"]["time_s"] != ten["actual_best"]["time_s"]
     assert all(e["used"] is False for e in after["efforts"] if e["activity_id"] == 102)
     seeded.delete("/api/efforts/102/exclude")
-    assert seeded.get("/api/predictions").json()["targets"][1]["actual_best"]["activity_id"] == 102
+    assert seeded.get("/api/predictions?include_indoor=false").json()["targets"][1]["actual_best"]["activity_id"] == 102
     with_indoor = seeded.get("/api/predictions?include_indoor=true").json()
     five = next(t for t in with_indoor["targets"] if t["key"] == "5k")
-    assert five["actual_best"]["activity_id"] == 103 or five["actual_best"]["time_s"] <= 1000 or True
+    assert five["actual_best"]["activity_id"] == 103  # the 16:40 treadmill 5K is now the fastest
     assert seeded.post("/api/efforts/9999/exclude").status_code == 404
 
 
