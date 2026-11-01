@@ -57,7 +57,7 @@ export default function App() {
         {route.name === "dashboard" && <Dashboard open={openActivity} goSettings={() => go("settings")} />}
         {route.name === "activities" && <Activities open={openActivity} goSettings={() => go("settings")} />}
         {route.name === "activity" && <ActivityDetail id={route.id} back={() => window.history.back()} />}
-        {route.name === "settings" && <Settings />}
+        {route.name === "settings" && <Settings onRestored={refresh} />}
       </main>
     </div>
   );

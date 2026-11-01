@@ -104,6 +104,9 @@ def connect(path: Path) -> sqlite3.Connection:
     return conn
 
 
+SCHEMA_VERSION = 1  # bump when a migration is added; stored in PRAGMA user_version
+
+
 def _add_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
     cols = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
     if column not in cols:
@@ -117,6 +120,7 @@ def init_db(path: Path) -> None:
         # upgrades for databases created by earlier versions
         _add_column(conn, "sync_runs", "mode", "mode TEXT")
         _add_column(conn, "sync_runs", "scheduled", "scheduled INTEGER NOT NULL DEFAULT 0")
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         conn.commit()
     finally:
         conn.close()

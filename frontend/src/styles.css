@@ -55,3 +55,8 @@ a.button { padding: 8px 14px; border: 1px solid var(--line); border-radius: 6px;
 .chart .tick { font-size: 12px; }
 select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; max-width: 260px; }
 .syncbar { min-height: 40px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; }
+@media (max-width: 480px) { .grid2 { grid-template-columns: 1fr; } }
+.chart .tick.big { font-size: 15px; }
+.check { display: flex !important; align-items: center; gap: 8px; font-weight: 400; }
+.check input { min-width: 0; width: auto; }

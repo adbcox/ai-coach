@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import { api } from "../api";
+import Restore from "../components/Restore";
 
 export default function Auth({ mode, onDone }: { mode: "setup" | "login"; onDone: () => void }) {
   const [username, setUsername] = useState("");
@@ -7,6 +8,7 @@ export default function Auth({ mode, onDone }: { mode: "setup" | "login"; onDone
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const setup = mode === "setup";
+  const [restoring, setRestoring] = useState(false);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -20,6 +22,19 @@ export default function Auth({ mode, onDone }: { mode: "setup" | "login"; onDone
     } finally {
       setBusy(false);
     }
+  }
+
+  if (setup && restoring) {
+    return (
+      <main className="center">
+        <div className="card">
+          <h1>Restore from a backup</h1>
+          <p className="muted">Use a backup file made by this app. Your account and data come back with it.</p>
+          <Restore replacing={false} onDone={onDone} />
+          <button className="link" onClick={() => setRestoring(false)}>Back to first-run setup</button>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -46,6 +61,11 @@ export default function Auth({ mode, onDone }: { mode: "setup" | "login"; onDone
         <button className="primary" disabled={busy}>
           {setup ? "Create account" : "Sign in"}
         </button>
+        {setup && (
+          <button type="button" className="link" onClick={() => setRestoring(true)}>
+            Moving from another machine? Restore from a backup
+          </button>
+        )}
       </form>
     </main>
   );

@@ -1,11 +1,12 @@
 import { FormEvent, useState } from "react";
 import { api, GarminStatus } from "../api";
+import Backups from "../components/Backups";
 import { intervalLabel, useSync } from "../lib/useSync";
 
 const KEY_PAGE = "https://connect.garmin.com/app/settings/personalApiToken";
 const DOCS = "https://developer.garmin.com/gc-developer-program/personal/personal-api/";
 
-export default function Settings() {
+export default function Settings({ onRestored }: { onRestored: () => void }) {
   const { status, setStatus, running, start, load } = useSync();
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
@@ -37,6 +38,7 @@ export default function Settings() {
 
   const last = status?.last_sync;
   return (
+    <div className="stack">
     <section className="card wide">
       <h2>Garmin</h2>
       <p className="muted">
@@ -145,5 +147,7 @@ export default function Settings() {
         </p>
       )}
     </section>
+    <Backups onRestored={onRestored} />
+    </div>
   );
 }

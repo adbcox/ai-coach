@@ -154,3 +154,25 @@ excludes names, places, GPS coordinates, dates and free text, but numeric
 ranges (for example heart rate or distance min/max) are included, so look
 at the file before sharing it. It is how the dashboard's parsing gets
 fitted to real responses.
+
+## Backup and restore
+
+Settings, **Backups**:
+
+- **Create backup now** writes a `.tar` to `data/backups/` on the server and
+  lists it for download. The newest 7 are kept. A backup holds a consistent
+  snapshot of the database (safe while a sync runs), the original Garmin
+  files and the ingest folders. It never includes `secrets/master.key`.
+- **Seal the Garmin key** (optional): tick the box and choose a passphrase
+  (8+ characters). The key is encrypted with it inside the backup, so a
+  restore elsewhere needs no re-entry. Without a passphrase the key is simply
+  not in the backup; paste it again after restoring.
+- **Move to another machine**: install the app there, and on the first-run
+  screen choose **Moving from another machine? Restore from a backup**, upload
+  the file (and the passphrase if you sealed the key), then sign in with your
+  old admin account.
+- **Restore over an existing install** (Settings, Restore): replaces the
+  database, signs everyone out, and keeps a copy of the previous database
+  next to it (`pre-restore-...sqlite3`). Refused while a sync is running.
+- Backups contain your health data and your admin password hash. Treat the
+  files like the data itself.

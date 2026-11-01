@@ -113,6 +113,13 @@ class SyncManager:
     def running(self) -> bool:
         return self._lock.locked()
 
+    def try_exclusive(self) -> bool:
+        """Block syncs while something else (restore) owns the data."""
+        return self._lock.acquire(blocking=False)
+
+    def release_exclusive(self) -> None:
+        self._lock.release()
+
     def start_background(self, mode: str = "quick") -> bool:
         if self._lock.locked():
             return False

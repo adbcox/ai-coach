@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, ActivityList, api } from "../api";
 import MileageChart from "../components/MileageChart";
+import RollingCharts from "../components/RollingCharts";
 import { duration, km, lastDays, localDay, sportGroup, SportGroup } from "../lib/format";
 import { ago, useSync } from "../lib/useSync";
 
@@ -12,7 +13,7 @@ export default function Dashboard({ open, goSettings }: { open: (id: number) => 
   const [error, setError] = useState("");
 
   const loadActivities = useCallback(() => {
-    const since = new Date(Date.now() - 16 * 86400000).toISOString();
+    const since = new Date(Date.now() - 36 * 86400000).toISOString();
     api<ActivityList>(`/activities?since=${encodeURIComponent(since)}&limit=500`)
       .then((d) => setItems(d.items))
       .catch((e) => setError(e.message));
@@ -100,11 +101,16 @@ export default function Dashboard({ open, goSettings }: { open: (id: number) => 
         <MileageChart activities={view} />
       </section>
 
+      <div className="row between">
+        <h2 style={{ margin: 0 }}>Last 4 weeks</h2>
+      </div>
+      <RollingCharts activities={view} noun={filter === "Running" ? "run" : filter === "Cycling" ? "ride" : "activity"} />
+
       <section className="card wide">
         <h3 style={{ margin: 0 }}>Latest activities</h3>
         {latest.length === 0 ? (
           <p className="muted">
-            Nothing in the last 16 days{filter !== "All" ? ` for ${filter}` : ""}. Older activities are in the Activities tab; check{" "}
+            Nothing in the last 5 weeks{filter !== "All" ? ` for ${filter}` : ""}. Older activities are in the Activities tab; check{" "}
             <button className="link" onClick={goSettings}>Settings</button> if a sync is still running.
           </p>
         ) : (

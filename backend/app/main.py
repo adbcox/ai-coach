@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json as _json
+import threading
 import time
+import uuid
 from collections import defaultdict
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -15,7 +17,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import __version__, db, diagnostics, schedule, security
+from . import __version__, backup, db, diagnostics, schedule, security
 from .config import Settings
 from .crypto import SecretBox
 from .garmin.client import GarminError
@@ -37,6 +39,10 @@ class Schedule(BaseModel):
     interval_minutes: int
 
 
+class BackupRequest(BaseModel):
+    passphrase: str | None = Field(default=None, max_length=256)
+
+
 class GarminKey(BaseModel):
     api_key: str = Field(min_length=8, max_length=4096)
 
@@ -56,6 +62,8 @@ def create_app(
     box = SecretBox.load(settings.secrets_dir, settings.app_secret)
     manager = SyncManager(settings, box, client_factory)
     failures: dict[str, list[float]] = defaultdict(list)
+    backup_lock = threading.Lock()
+    backup_state: dict = {"error": None, "last_ok": None}
 
     @contextlib.asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -226,6 +234,81 @@ def create_app(
         if not manager.start_background(mode=mode):
             raise HTTPException(409, "A sync is already running.")
         return {"started": True}
+
+    def _run_backup(passphrase: str | None) -> None:
+        try:
+            backup.create_backup(settings, box, passphrase=passphrase or None)
+            backup_state["error"] = None
+            backup_state["last_ok"] = _now()
+        except Exception as exc:  # surfaced in the UI
+            backup_state["error"] = f"{type(exc).__name__}: {exc}"
+        finally:
+            backup_lock.release()
+
+    @app.get("/api/backups")
+    def backups_list(_=Depends(current_user)) -> dict:
+        return {"items": backup.list_backups(settings), "running": backup_lock.locked(),
+                "error": backup_state["error"], "keep": backup.DEFAULT_KEEP}
+
+    @app.post("/api/backups", status_code=202)
+    def backups_create(body: BackupRequest, _=Depends(current_user)) -> dict:
+        if not backup_lock.acquire(blocking=False):
+            raise HTTPException(409, "A backup is already running.")
+        threading.Thread(target=_run_backup, args=(body.passphrase,), daemon=True,
+                         name="backup").start()
+        return {"started": True}
+
+    @app.get("/api/backups/{name}")
+    def backups_download(name: str, _=Depends(current_user)) -> FileResponse:
+        path = backup.resolve(settings, name)
+        if path is None:
+            raise HTTPException(404, "Backup not found.")
+        return FileResponse(path, media_type="application/x-tar", filename=name)
+
+    @app.delete("/api/backups/{name}")
+    def backups_delete(name: str, _=Depends(current_user)) -> dict:
+        path = backup.resolve(settings, name)
+        if path is None:
+            raise HTTPException(404, "Backup not found.")
+        path.unlink()
+        return {"ok": True}
+
+    @app.put("/api/restore")
+    async def restore(request: Request) -> dict:
+        def who() -> tuple[int, bool]:
+            conn = db.connect(settings.db_path)
+            try:
+                users = conn.execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"]
+                user = security.lookup_session(conn, request.cookies.get(COOKIE))
+                return users, user is not None
+            finally:
+                conn.close()
+
+        users, signed_in = await asyncio.to_thread(who)
+        if users and not signed_in:
+            raise HTTPException(401, "Sign in to restore a backup.")
+        if not manager.try_exclusive():
+            raise HTTPException(409, "A sync is running. Try again when it finishes.")
+        if not backup_lock.acquire(blocking=False):
+            manager.release_exclusive()
+            raise HTTPException(409, "A backup is running. Try again when it finishes.")
+        upload = settings.data_dir / "tmp" / f"upload-{uuid.uuid4().hex}.tar"
+        try:
+            upload.parent.mkdir(parents=True, exist_ok=True)
+            with open(upload, "wb") as handle:
+                async for chunk in request.stream():
+                    handle.write(chunk)
+            passphrase = request.headers.get("x-passphrase") or None
+            try:
+                summary = await asyncio.to_thread(
+                    backup.restore_backup, settings, box, upload, passphrase=passphrase)
+            except backup.RestoreError as exc:
+                raise HTTPException(400, str(exc)) from exc
+            return {"ok": True, **summary}
+        finally:
+            upload.unlink(missing_ok=True)
+            backup_lock.release()
+            manager.release_exclusive()
 
     @app.get("/api/diagnostics/shapes")
     def diagnostics_shapes(_=Depends(current_user), conn=Depends(get_conn)) -> Response:

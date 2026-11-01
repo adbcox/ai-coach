@@ -103,3 +103,22 @@ export interface SamplesData {
   speed: (number | null)[];
   dist: (number | null)[];
 }
+
+export interface BackupItem { name: string; size: number; created_at: string }
+export interface BackupList { items: BackupItem[]; running: boolean; error: string | null; keep: number }
+export interface RestoreSummary {
+  ok: boolean; rows: Record<string, number>; files: number; created_at: string | null;
+  secrets_restored: boolean; secrets_in_backup: boolean; previous_database_kept_as: string | null;
+}
+
+export async function restoreBackup(file: File, passphrase: string): Promise<RestoreSummary> {
+  const res = await fetch("/api/restore", {
+    method: "PUT",
+    headers: { "X-Requested-With": "aec", ...(passphrase ? { "X-Passphrase": passphrase } : {}) },
+    body: file,
+    credentials: "same-origin",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(res.status, typeof data.detail === "string" ? data.detail : `Restore failed (${res.status})`);
+  return data as RestoreSummary;
+}
