@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from . import db
+from . import db, schedule
 from .config import Settings
 from .crypto import SecretBox
 from .fit.parser import FitError, ParsedActivity, extract_fit, parse_fit
@@ -113,24 +113,36 @@ class SyncManager:
     def running(self) -> bool:
         return self._lock.locked()
 
-    def start_background(self, full: bool = False) -> bool:
+    def start_background(self, mode: str = "quick") -> bool:
         if self._lock.locked():
             return False
-        threading.Thread(target=self.run_once, kwargs={"full": full}, daemon=True,
+        threading.Thread(target=self.run_once, kwargs={"mode": mode}, daemon=True,
                          name="garmin-sync").start()
         return True
 
-    def run_once(self, full: bool = False) -> SyncResult:
+    def maybe_run_scheduled(self) -> SyncResult | None:
+        """Called every minute by the scheduler; runs a background sync when due."""
+        conn = db.connect(self.settings.db_path)
+        try:
+            has_key = conn.execute("SELECT 1 FROM provider_credentials WHERE provider=?",
+                                   (PROVIDER,)).fetchone() is not None
+            due = has_key and schedule.is_due(conn, PROVIDER, self.settings)
+        finally:
+            conn.close()
+        return self.run_once(mode="background", scheduled=True) if due else None
+
+    def run_once(self, mode: str = "quick", scheduled: bool = False) -> SyncResult:
         if not self._lock.acquire(blocking=False):
             return SyncResult("error", message="A sync is already running.")
         conn = db.connect(self.settings.db_path)
         run_id = conn.execute(
-            "INSERT INTO sync_runs (provider, started_at, status) VALUES (?, ?, 'running')",
-            (PROVIDER, _now()),
+            "INSERT INTO sync_runs (provider, started_at, status, mode, scheduled) "
+            "VALUES (?, ?, 'running', ?, ?)",
+            (PROVIDER, _now(), mode, 1 if scheduled else 0),
         ).lastrowid
         conn.commit()
         try:
-            result = self._sync(conn, run_id, full)
+            result = self._sync(conn, run_id, mode)
         except Exception as exc:  # never leave a run stuck as 'running'
             result = SyncResult("error", message=f"Unexpected error: {type(exc).__name__}")
         conn.execute(
@@ -142,7 +154,9 @@ class SyncManager:
         self._lock.release()
         return result
 
-    def _sync(self, conn, run_id: int, full: bool) -> SyncResult:
+    def _sync(self, conn, run_id: int, mode: str) -> SyncResult:
+        full = mode == "full"
+        lookback = schedule.LOOKBACK_DAYS[mode]
         def progress(text: str) -> None:
             conn.execute("UPDATE sync_runs SET message=? WHERE id=?", (text, run_id))
             conn.commit()
@@ -164,14 +178,14 @@ class SyncManager:
         try:
             with client:
                 client.ensure_token()
-                new, failures = self._sync_activities(conn, client, full, progress)
+                new, failures = self._sync_activities(conn, client, full, lookback, progress)
                 earliest = conn.execute(
                     "SELECT MIN(start_time) AS m FROM activities WHERE source=?", (PROVIDER,)
                 ).fetchone()["m"]
                 floor = (datetime.fromisoformat(earliest).date() - timedelta(days=365)
                          if earliest else date.today() - timedelta(days=730))
                 notes = sync_wellness(conn, client, self.settings, full=full,
-                                      progress=progress, floor=floor)
+                                      progress=progress, floor=floor, lookback=lookback)
         except GarminError as exc:
             conn.commit()
             return SyncResult("error", new, f"{exc} ({new} new activities saved before the error; "
@@ -183,7 +197,7 @@ class SyncManager:
             msg += " Not available from Garmin: " + "; ".join(notes)
         return SyncResult("ok", new, msg)
 
-    def _sync_activities(self, conn, client, full: bool, progress) -> tuple[int, list[str]]:
+    def _sync_activities(self, conn, client, full: bool, lookback: int, progress) -> tuple[int, list[str]]:
         backfilled = get_state(conn, "activities_backfill_done") == "1"
         scan_all = full or not backfilled
         start_date = end_date = None
@@ -191,7 +205,9 @@ class SyncManager:
             latest = conn.execute(
                 "SELECT MAX(start_time) AS m FROM activities WHERE source=?", (PROVIDER,)
             ).fetchone()["m"]
-            since = (datetime.fromisoformat(latest).date() - timedelta(days=3) if latest
+            # window starts at the newest stored activity minus the lookback, so a
+            # long gap (server off, failed syncs) is covered automatically
+            since = (datetime.fromisoformat(latest).date() - timedelta(days=lookback) if latest
                      else date.today() - timedelta(days=self.settings.backfill_days))
             start_date = since.isoformat()
             end_date = (date.today() + timedelta(days=1)).isoformat()

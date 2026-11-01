@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import __version__, db, diagnostics, security
+from . import __version__, db, diagnostics, schedule, security
 from .config import Settings
 from .crypto import SecretBox
 from .garmin.client import GarminError
@@ -31,6 +31,10 @@ _MAX_FAILS, _WINDOW_S = 5, 300
 class Credentials(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     password: str = Field(min_length=12, max_length=256)
+
+
+class Schedule(BaseModel):
+    interval_minutes: int
 
 
 class GarminKey(BaseModel):
@@ -56,11 +60,14 @@ def create_app(
     @contextlib.asynccontextmanager
     async def lifespan(_: FastAPI):
         task = None
-        if start_scheduler and settings.sync_interval_hours > 0:
+        if start_scheduler:
             async def loop() -> None:
                 while True:
-                    await asyncio.sleep(settings.sync_interval_hours * 3600)
-                    await asyncio.to_thread(manager.run_once)
+                    await asyncio.sleep(60)
+                    try:
+                        await asyncio.to_thread(manager.maybe_run_scheduled)
+                    except Exception:  # keep the scheduler alive whatever happens
+                        pass
             task = asyncio.create_task(loop())
         yield
         if task:
@@ -75,6 +82,7 @@ def create_app(
     app = FastAPI(title="ai-endurance-coach", version=__version__, lifespan=lifespan,
                   dependencies=[Depends(csrf_guard)], docs_url=None, redoc_url=None)
     app.state.settings = settings
+    app.state.sync_manager = manager
 
     def get_conn() -> Iterator:
         conn = db.connect(settings.db_path)
@@ -144,10 +152,16 @@ def create_app(
         response.delete_cookie(COOKIE, path="/")
         return {"ok": True}
 
+    def schedule_status(conn) -> dict:
+        nxt = schedule.next_run(conn, PROVIDER, settings)
+        return {"interval_minutes": schedule.get_interval(conn, PROVIDER, settings),
+                "options": schedule.INTERVAL_OPTIONS,
+                "next_run_at": nxt.isoformat(timespec="seconds") if nxt else None}
+
     def garmin_status(conn) -> dict:
         cred = conn.execute("SELECT updated_at, validated_at FROM provider_credentials "
                             "WHERE provider=?", (PROVIDER,)).fetchone()
-        last = conn.execute("SELECT started_at, finished_at, status, new_activities, message "
+        last = conn.execute("SELECT started_at, finished_at, status, new_activities, message, mode, scheduled "
                             "FROM sync_runs WHERE provider=? ORDER BY id DESC LIMIT 1",
                             (PROVIDER,)).fetchone()
         acts = conn.execute("SELECT COUNT(*) AS n, MIN(start_time) AS first, "
@@ -157,6 +171,7 @@ def create_app(
         return {
             "stored": {"activities": acts["n"], "first_activity": acts["first"],
                        "last_activity": acts["last"], "health_records": health},
+            "schedule": schedule_status(conn),
             "configured": cred is not None,
             "validated_at": cred["validated_at"] if cred else None,
             "syncing": manager.running,
@@ -191,12 +206,24 @@ def create_app(
         conn.commit()
         return garmin_status(conn)
 
+    @app.put("/api/providers/garmin/schedule")
+    def garmin_schedule(body: Schedule, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        try:
+            schedule.set_interval(conn, PROVIDER, body.interval_minutes)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        return garmin_status(conn)
+
     @app.post("/api/sync", status_code=202)
-    def sync_start(full: bool = False, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
+    def sync_start(mode: str = "quick", full: bool = False, _=Depends(current_user),
+                   conn=Depends(get_conn)) -> dict:
+        mode = "full" if full else mode
+        if mode not in schedule.MODES:
+            raise HTTPException(400, "mode must be quick, background or full.")
         if conn.execute("SELECT 1 FROM provider_credentials WHERE provider=?",
                         (PROVIDER,)).fetchone() is None:
             raise HTTPException(400, "Add your Garmin key in Settings first.")
-        if not manager.start_background(full=full):
+        if not manager.start_background(mode=mode):
             raise HTTPException(409, "A sync is already running.")
         return {"started": True}
 

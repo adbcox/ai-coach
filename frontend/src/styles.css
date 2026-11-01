@@ -53,3 +53,5 @@ a.button { padding: 8px 14px; border: 1px solid var(--line); border-radius: 6px;
 .uplot, .u-over { max-width: 100%; }
 .brand { display: flex; align-items: center; gap: 8px; color: var(--text); text-decoration: none; }
 .chart .tick { font-size: 12px; }
+select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; max-width: 260px; }
+.syncbar { min-height: 40px; }

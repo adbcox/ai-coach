@@ -1,26 +1,15 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useState } from "react";
 import { api, GarminStatus } from "../api";
+import { intervalLabel, useSync } from "../lib/useSync";
 
 const KEY_PAGE = "https://connect.garmin.com/app/settings/personalApiToken";
 const DOCS = "https://developer.garmin.com/gc-developer-program/personal/personal-api/";
 
 export default function Settings() {
-  const [status, setStatus] = useState<GarminStatus | null>(null);
+  const { status, setStatus, running, start, load } = useSync();
   const [key, setKey] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-
-  const load = useCallback(() => {
-    api<GarminStatus>("/providers/garmin").then(setStatus).catch((e) => setError(e.message));
-  }, []);
-  useEffect(load, [load]);
-
-  // poll while a sync is running
-  useEffect(() => {
-    if (!status?.syncing && status?.last_sync?.status !== "running") return;
-    const t = setInterval(load, 2000);
-    return () => clearInterval(t);
-  }, [status, load]);
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -82,12 +71,13 @@ export default function Settings() {
 
       {status?.configured && (
         <div className="row">
-          <button onClick={() => run(() => api("/sync", "POST"))} disabled={status.syncing}>
-            {status.syncing ? "Syncing…" : "Sync now"}
+          <button onClick={() => start("background")} disabled={running}
+            title="Looks back 30 days from your newest data to close any gaps">
+            {running ? "Syncing…" : "Sync now (30-day check)"}
           </button>
           <button
-            onClick={() => run(() => api("/sync?full=true", "POST"))}
-            disabled={status.syncing}
+            onClick={() => start("full")}
+            disabled={running}
             title="Re-scan all history and fill any gaps"
           >
             Re-sync all history
@@ -95,6 +85,35 @@ export default function Settings() {
           <button onClick={() => confirm("Remove the saved Garmin key?") && run(() => api("/providers/garmin", "DELETE"))}>
             Remove key
           </button>
+        </div>
+      )}
+
+      {status?.configured && (
+        <div className="stack" style={{ gap: 6 }}>
+          <label>
+            Automatic sync
+            <select
+              value={status.schedule.interval_minutes}
+              onChange={(e) =>
+                run(async () =>
+                  setStatus(await api<GarminStatus>("/providers/garmin/schedule", "PUT", { interval_minutes: Number(e.target.value) })),
+                )
+              }
+            >
+              {status.schedule.options.map((m) => (
+                <option key={m} value={m}>{intervalLabel(m)}</option>
+              ))}
+            </select>
+          </label>
+          <span className="muted">
+            {status.schedule.next_run_at
+              ? `Next automatic sync: ${
+                  new Date(status.schedule.next_run_at).getTime() <= Date.now()
+                    ? "due now (within a minute)"
+                    : new Date(status.schedule.next_run_at).toLocaleString()
+                }. Each one looks back 30 days from your newest data so nothing is missed.`
+              : "Automatic sync is off. Use Sync here or on the home page."}
+          </span>
         </div>
       )}
 

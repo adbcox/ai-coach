@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, ActivityList, api } from "../api";
 import MileageChart from "../components/MileageChart";
 import { duration, km, lastDays, localDay, sportGroup, SportGroup } from "../lib/format";
+import { ago, useSync } from "../lib/useSync";
 
 const FILTERS: ("All" | SportGroup)[] = ["All", "Running", "Cycling", "Other"];
 
@@ -10,12 +11,14 @@ export default function Dashboard({ open, goSettings }: { open: (id: number) => 
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("All");
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  const loadActivities = useCallback(() => {
     const since = new Date(Date.now() - 16 * 86400000).toISOString();
     api<ActivityList>(`/activities?since=${encodeURIComponent(since)}&limit=500`)
       .then((d) => setItems(d.items))
       .catch((e) => setError(e.message));
   }, []);
+  useEffect(loadActivities, [loadActivities]);
+  const sync = useSync(loadActivities);
 
   const view = useMemo(
     () => (items ?? []).filter((a) => filter === "All" || sportGroup(a.sport) === filter),
@@ -45,6 +48,32 @@ export default function Dashboard({ open, goSettings }: { open: (id: number) => 
 
   return (
     <div className="stack">
+      <div className="row between syncbar">
+        <div>
+          {sync.status?.configured ? (
+            <>
+              <button className="primary" onClick={() => sync.start("quick")} disabled={sync.running}>
+                {sync.running ? "Syncing…" : "Sync"}
+              </button>{" "}
+              <span className="muted">
+                {sync.running
+                  ? sync.status.last_sync?.message ?? ""
+                  : `Last synced ${ago(sync.status.last_sync?.finished_at)}${
+                      sync.status.last_sync?.status === "error" ? " (failed: " + sync.status.last_sync.message + ")" : ""
+                    }`}
+              </span>
+              {sync.error && <span className="error"> {sync.error}</span>}
+            </>
+          ) : (
+            sync.status && (
+              <span className="muted">
+                No data source connected. <button className="link" onClick={goSettings}>Add your Garmin key</button>
+              </span>
+            )
+          )}
+        </div>
+      </div>
+
       <div className="row between">
         <h2 style={{ margin: 0 }}>Last 14 days</h2>
         <div className="chips">

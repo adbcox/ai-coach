@@ -21,8 +21,6 @@ SOURCE = "garmin"
 CHUNK_DAYS = 28
 EMPTY_CHUNKS_STOP = 8   # consecutive empty 28-day windows => end of history
 EMPTY_DAYS_STOP = 45    # consecutive empty days => end of history
-RECENT_CHUNKS = 2       # always refresh the newest windows
-RECENT_DAYS = 3
 
 
 @dataclass(frozen=True)
@@ -85,6 +83,19 @@ def set_state(conn, key: str, value: str) -> None:
     conn.commit()
 
 
+def newest_nonempty(conn, kind: str) -> date | None:
+    row = conn.execute(
+        "SELECT MAX(end_date) AS d FROM wellness_raw WHERE source=? AND kind=? AND is_empty=0",
+        (SOURCE, kind)).fetchone()
+    return date.fromisoformat(row["d"]) if row and row["d"] else None
+
+
+def refresh_from(conn, kind: str, lookback_days: int) -> date:
+    """Start of the window that is always re-fetched: newest stored data minus lookback."""
+    newest = newest_nonempty(conn, kind) or date.today()
+    return min(newest, date.today()) - timedelta(days=lookback_days)
+
+
 def _stored(conn, kind: str, start: str, end: str):
     return conn.execute(
         "SELECT is_empty FROM wellness_raw WHERE source=? AND kind=? AND start_date=? "
@@ -135,19 +146,21 @@ class Walker:
             self.sleep(self.settings.request_delay_s)
         return payload
 
-    def range_kind(self, kind: RangeKind, floor: date, full: bool) -> None:
+    def range_kind(self, kind: RangeKind, floor: date, full: bool, lookback: int) -> None:
         state_key = f"wellness_{kind.name}_done"
         done = get_state(self.conn, state_key) == "1" and not full
+        since = refresh_from(self.conn, kind.name, lookback)
         newest = date.today().toordinal() // CHUNK_DAYS
         oldest = floor.toordinal() // CHUNK_DAYS
         empties = 0
         reached_end = False
-        for age, index in enumerate(range(newest, oldest - 1, -1)):
-            if done and age >= RECENT_CHUNKS:
-                return
+        for index in range(newest, oldest - 1, -1):
             start, end = _chunk(index)
+            refresh = end >= since
+            if done and not refresh:
+                return
             have = _stored(self.conn, kind.name, start.isoformat(), end.isoformat())
-            if have is not None and age >= RECENT_CHUNKS:
+            if have is not None and not refresh:
                 empties = empties + 1 if have["is_empty"] else 0
             else:
                 path, params = _range_request(kind, start, end)
@@ -169,19 +182,19 @@ class Walker:
         if reached_end or index == oldest:
             set_state(self.conn, state_key, "1")
 
-    def day_kind(self, kind: DayKind, floor: date, full: bool) -> None:
+    def day_kind(self, kind: DayKind, floor: date, full: bool, lookback: int) -> None:
         state_key = f"wellness_{kind.name}_done"
         done = get_state(self.conn, state_key) == "1" and not full
-        today = date.today()
+        since = refresh_from(self.conn, kind.name, lookback)
         empties = 0
-        day = today
-        age = 0
+        day = date.today()
         while day >= floor:
-            if done and age >= RECENT_DAYS:
+            refresh = day >= since
+            if done and not refresh:
                 return
             iso = day.isoformat()
             have = _stored(self.conn, kind.name, iso, iso)
-            if have is not None and age >= RECENT_DAYS:
+            if have is not None and not refresh:
                 empties = empties + 1 if have["is_empty"] else 0
             else:
                 path, params = _day_request(kind, day)
@@ -202,16 +215,15 @@ class Walker:
                 set_state(self.conn, state_key, "1")
                 return
             day -= timedelta(days=1)
-            age += 1
         set_state(self.conn, state_key, "1")
 
 
 def sync_wellness(conn, client: GarminClient, settings: Settings, *, full: bool,
-                  progress: Progress, floor: date) -> list[str]:
+                  progress: Progress, floor: date, lookback: int) -> list[str]:
     """Returns human-readable notes (kinds that were unavailable, etc.)."""
     walker = Walker(conn, client, settings, progress)
     for rk in RANGE_KINDS:
-        walker.range_kind(rk, floor, full)
+        walker.range_kind(rk, floor, full, lookback)
     for dk in DAY_KINDS:
-        walker.day_kind(dk, floor, full)
+        walker.day_kind(dk, floor, full, lookback)
     return walker.notes

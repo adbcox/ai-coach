@@ -4,13 +4,14 @@ import httpx
 import pytest
 
 from app.garmin.client import GarminClient, GarminError
-from app.wellness import CHUNK_DAYS, RECENT_CHUNKS, RECENT_DAYS, is_empty
+from app.wellness import CHUNK_DAYS, is_empty
 from tests.conftest import API_KEY
 from tests.test_api import wait_idle
 
 
-def run_sync(client, full=False):
-    assert client.post(f"/api/sync?full={'true' if full else 'false'}").status_code == 202
+def run_sync(client, mode="quick", full=False):
+    url = "/api/sync?full=true" if full else f"/api/sync?mode={mode}"
+    assert client.post(url).status_code == 202
     return wait_idle(client)
 
 
@@ -42,12 +43,12 @@ def test_health_data_collected_and_not_refetched(authed, fake):
     before_s, before_d = fake.calls[summ], fake.calls[sleep]
     # unavailable types (404 in the fake) are reported, not fatal
     assert "not available" in s["last_sync"]["message"]
-    run_sync(authed)
-    assert fake.calls[summ] - before_s <= RECENT_CHUNKS
-    assert fake.calls[sleep] - before_d <= RECENT_DAYS
-    # a full re-scan only fills gaps, it does not refetch stored history
+    run_sync(authed)  # quick: newest stored data minus 1 day only
+    assert fake.calls[summ] - before_s <= 2
+    assert fake.calls[sleep] - before_d <= 3
+    # a full re-scan only fills gaps (+ refreshes the last 30 days), no old history refetch
     run_sync(authed, full=True)
-    assert fake.calls[sleep] - before_d < 30
+    assert fake.calls[sleep] - before_d < 45
 
 
 def test_chunks_cover_28_days():
@@ -107,3 +108,73 @@ def test_diagnostics_has_structure_but_no_personal_values(authed, fake):
 
 def test_diagnostics_requires_login(client):
     assert client.get("/api/diagnostics/shapes").status_code == 401
+
+
+def test_quick_vs_background_lookback(authed, fake):
+    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
+    run_sync(authed, "background")  # first run = full history
+    latest = max(i["start_time"] for i in authed.get("/api/activities").json()["items"])[:10]
+    latest_d = date.fromisoformat(latest)
+    n = len(fake.search_params)
+    run_sync(authed, "quick")
+    assert fake.search_params[n]["startDate"] == (latest_d - timedelta(days=1)).isoformat()
+    n = len(fake.search_params)
+    run_sync(authed, "background")
+    assert fake.search_params[n]["startDate"] == (latest_d - timedelta(days=30)).isoformat()
+
+
+def test_quick_refetches_fewer_health_days_than_background(authed, fake):
+    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
+    run_sync(authed, "background")
+    sleep = "/sleep-service/sleep/dailySleep"
+    a = fake.calls[sleep]
+    run_sync(authed, "quick")
+    quick = fake.calls[sleep] - a
+    b = fake.calls[sleep]
+    run_sync(authed, "background")
+    deep = fake.calls[sleep] - b
+    assert quick <= 3 < 25 <= deep <= 33
+
+
+def test_mode_validation(authed):
+    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
+    assert authed.post("/api/sync?mode=nonsense").status_code == 400
+
+
+def test_schedule_setting_and_validation(authed):
+    st = authed.get("/api/providers/garmin").json()["schedule"]
+    assert st["interval_minutes"] == 360 and 0 in st["options"]
+    r = authed.put("/api/providers/garmin/schedule", json={"interval_minutes": 60})
+    assert r.json()["schedule"]["interval_minutes"] == 60
+    assert authed.put("/api/providers/garmin/schedule", json={"interval_minutes": 5}).status_code == 400
+    off = authed.put("/api/providers/garmin/schedule", json={"interval_minutes": 0}).json()
+    assert off["schedule"]["interval_minutes"] == 0 and off["schedule"]["next_run_at"] is None
+
+
+def test_scheduler_runs_when_due_then_waits(authed, client):
+    manager = client.app.state.sync_manager
+    assert manager.maybe_run_scheduled() is None  # no key configured
+    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
+    first = manager.maybe_run_scheduled()
+    assert first is not None and first.status == "ok"
+    assert manager.maybe_run_scheduled() is None  # not due again for 6 h
+    run = authed.get("/api/providers/garmin").json()["last_sync"]
+    assert run["scheduled"] == 1 and run["mode"] == "background"
+    authed.put("/api/providers/garmin/schedule", json={"interval_minutes": 0})
+    assert manager.maybe_run_scheduled() is None  # off
+
+
+def test_quick_sync_does_not_reset_schedule_timer(authed, client):
+    from datetime import UTC, datetime, timedelta
+
+    from app import db, schedule
+    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
+    run_sync(authed, "quick")
+    conn = db.connect(client.app.state.settings.db_path)
+    try:
+        assert schedule.is_due(conn, "garmin", client.app.state.settings)  # never deep-synced
+        run_sync(authed, "background")
+        later = datetime.now(UTC) + timedelta(hours=7)
+        assert schedule.is_due(conn, "garmin", client.app.state.settings, now=later)
+    finally:
+        conn.close()

@@ -82,7 +82,7 @@ for the current official steps see docs.unraid.net.)
    12+ character password). Only the first visit can do this.
 2. **Settings**: paste the Garmin key, **Save and test**. A wrong or expired
    key is rejected with a message and nothing is stored.
-3. **Sync now**. The first sync downloads your **entire** Garmin activity
+3. **Sync**. The first sync downloads your **entire** Garmin activity
    history (every activity back to your first, with its FIT file and
    per-second data) and walks back through your daily health data (sleep,
    HRV, Body Battery, daily summaries, heart rate, SpO2, steps, hydration,
@@ -90,8 +90,20 @@ for the current official steps see docs.unraid.net.)
    progress shows in Settings and you can leave the page. If it is
    interrupted or hits an error, press Sync again and it continues where it
    stopped. After that it only fetches what is new, every 6 hours
-   (`AEC_SYNC_INTERVAL_HOURS`, `0` disables). **Re-sync all history** re-scans
+   (default interval; change it in Settings). **Re-sync all history** re-scans
    everything and fills any gaps.
+
+   Three kinds of sync, all anchored to the newest data already stored (so a
+   gap while the server was off is covered automatically):
+   - **Home page Sync**: looks back 24 hours. Quick.
+   - **Automatic (background) sync and Settings "Sync now"**: look back 30
+     days, to catch late-arriving activities and revised health data. Set the
+     interval per source under Settings, Automatic sync (off, 1, 3, 6, 12 or
+     24 hours; default 6).
+   - **Re-sync all history**: the full gap-filling scan.
+
+   Activities you rename or delete in Garmin are not updated here; existing
+   activities are not re-downloaded.
 4. **Dashboard** shows the last 14 days; **Activities** lists everything imported, and clicking one opens its map and charts.
 
 The map loads tiles from `tile.openstreetmap.org` in **your browser**, so

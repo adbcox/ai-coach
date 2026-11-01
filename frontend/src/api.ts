@@ -34,7 +34,15 @@ export interface SessionInfo {
   username: string | null;
 }
 
+export interface ScheduleInfo {
+  interval_minutes: number;
+  options: number[];
+  next_run_at: string | null;
+}
+
 export interface SyncRun {
+  mode: "quick" | "background" | "full" | null;
+  scheduled: number;
   started_at: string;
   finished_at: string | null;
   status: "running" | "ok" | "error";
@@ -51,6 +59,7 @@ export interface StoredSummary {
 
 export interface GarminStatus {
   stored: StoredSummary;
+  schedule: ScheduleInfo;
   configured: boolean;
   validated_at: string | null;
   syncing: boolean;

@@ -72,7 +72,7 @@ def fake():
 
 @pytest.fixture
 def settings(tmp_path):
-    return Settings(data_dir=tmp_path, request_delay_s=0, sync_interval_hours=0)
+    return Settings(data_dir=tmp_path, request_delay_s=0)
 
 
 @pytest.fixture
