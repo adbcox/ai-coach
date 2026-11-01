@@ -15,7 +15,7 @@ from . import maxhr, predict, recovery, references
 UTH_FACTOR = 15.3     # Uth et al. 2004: VO2max = 15.3 x HRmax / HRrest (ml/kg/min)
 UTH_SEE = 4.7         # reported standard error with age-predicted HRmax (about 7.8%)
 
-CITATION_IDS = ["daniels1979", "uth2004", "molina2022", "firstbeat2017", "frontiers2024_acsm", "elife2023", "tanaka2001", "kasiak2023"]
+CITATION_IDS = ["daniels1979", "uth2004", "molina2022", "firstbeat2017", "frontiers2024_acsm", "elife2023", "wiecha2023", "tanaka2001", "kasiak2023"]
 
 
 def build(conn: sqlite3.Connection, now: datetime | None = None) -> dict[str, Any]:

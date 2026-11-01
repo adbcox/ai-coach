@@ -25,7 +25,7 @@ MAX_SPEED = 7.0
 T975 = {1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447, 7: 2.365, 8: 2.306, 9: 2.262,
         10: 2.228, 12: 2.179, 15: 2.131, 20: 2.086, 30: 2.042}
 
-CITATION_IDS = ["riegel1981", "daniels1979", "poole2016", "minetti2002", "fetch_everyone", "valencia2025", "kasiak2023"]
+CITATION_IDS = ["riegel1981", "daniels1979", "poole2016", "minetti2002", "fetch_everyone", "valencia2025", "latorre2025", "kasiak2023"]
 
 CAVEATS = [
     "These are estimates built from your best efforts. A best effort inside a training run is not an "

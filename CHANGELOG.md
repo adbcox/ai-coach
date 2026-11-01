@@ -3,6 +3,7 @@
 ## 0.4.2
 
 Changed
+- **Five more papers read in full** (supplied by the app's author): Kasiak 2023 (max heart rate equations in 5,069 athletes), Wiecha 2023 (PLOS ONE, VO2max equations in athletes), Wiecha 2023 (eLife, submaximal models), Hata 2025 (HYPAC), Latorre-Roman 2025 (Valencia Marathon pacing). The Frontiers entry had the wrong authors and a guessed title; now corrected. HYPAC and eLife do not unlock a watch-only VO2max method (lab gas data needed; 10-student validation), so none of them changed a calculation.
 - **Five sources are now read in full** (supplied by the app's author): Riegel 1981, Uth 2004 (with its 2005
   erratum), Tanaka 2001, Poole 2016 and the INTERLIVE wearable VO2max meta-analysis (Molina-Garcia 2022). Their
   entries in Sources and credits now say "full text" and quote what the papers actually report.

@@ -135,41 +135,78 @@ REFERENCES: list[dict[str, Any]] = [
     },
     {
         "id": "kasiak2023", "short": "Kasiak et al. 2023", "kind": "paper",
-        "authors": "Kasiak P, et al.", "year": 2023,
+        "authors": "Kasiak PS, Wiecha S, Cieslinski I, Takken T, Lach J, Lewandowski M, Barylski M, Mamcarz A, Sliz D", "year": 2023,
         "title": "Validity of the maximal heart rate prediction models among runners and cyclists",
-        "venue": "Journal of Clinical Medicine (2023)", "doi": None, "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10146295/",
-        "verified": "abstract",
-        "verified_note": "Abstract and search summaries read (5,069 endurance athletes tested against maximal exercise tests; 9 of 13 "
-                         "equations differed significantly from measured values; RMSE 9.1 to 10.5 bpm).",
+        "venue": "Journal of Clinical Medicine 12(8):2884", "doi": "10.3390/jcm12082884",
+        "url": "https://doi.org/10.3390/jcm12082884",
+        "verified": "full_text",
+        "verified_note": "Full text read. 4,043 runners (age 33.6, 83.5% men) and 1,026 cyclists tested to maximum in the laboratory. Measured "
+                         "HRmax in runners 184.6 (SD 9.8) bpm. 13 equations compared: 9 differed significantly from measured; RMSE 9.1 to 10.5 bpm; "
+                         "MAPE up to 4.7%. Tanaka in runners: bias -1.5 bpm, RMSE 9.2 bpm, MAPE 4.0%. 220 - age: bias -0.2, RMSE 9.8. "
+                         "HRmax was underestimated more often than overestimated. The authors' conclusion: use predictions only as a supplement, "
+                         "laboratory testing is preferable.",
         "used_for": ["Why max heart rate is estimated from your own peaks rather than an age formula"],
-        "how_used": "Evidence that age formulas carry errors of roughly 9 to 10 bpm for individual endurance athletes.",
-        "limits": "Laboratory tests; the authors recommend predictions only as a supplement to testing.",
+        "how_used": "Evidence that age formulas carry an individual error of about 9 to 10 bpm for endurance athletes, even the best of them.",
+        "limits": "Laboratory treadmill and cycle tests, mostly men; a peak from your own hard runs is not a laboratory maximum either, "
+                  "which is why the app shows the age formula next to it and lets you override the value.",
     },
     {
-        "id": "valencia2025", "short": "Valencia Marathon study 2025", "kind": "paper",
+        "id": "valencia2025", "short": "Valencia Marathon study 2025 (prediction equation)", "kind": "paper",
         "authors": "See source", "year": 2025,
         "title": "Performance prediction equation for the Valencia Marathon based on time and pacing in the half marathon",
         "venue": "Open-access journal (see link)", "doi": None, "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12856576/",
         "verified": "abstract",
-        "verified_note": "Abstract only. Reported accuracy similar to the VDOT system but behaving differently by runner level.",
+        "verified_note": "Abstract only, and not the same paper as Latorre-Roman et al. 2025 (which is read in full and listed separately). "
+                         "Reported accuracy similar to the VDOT system but behaving differently by runner level. Full text still needed.",
         "used_for": ["Context for half-to-marathon prediction and for showing several methods side by side"],
         "how_used": "Not a formula used by the app; informs the choice to show methods together instead of picking one.",
-        "limits": "One race, one population.",
+        "limits": "One race, one population. Authors and exact title not verified.",
     },
     {
-        "id": "frontiers2024_acsm", "short": "Frontiers 2024: ACSM equations", "kind": "paper",
-        "authors": "See source", "year": 2024,
-        "title": "Article on the accuracy of the ACSM metabolic equations for walking and running, proposing the HYPAC system "
-                 "(Frontiers in Sports and Active Living, DOI 10.3389/fspor.2024.1522214; exact title not yet verified)",
-        "venue": "Frontiers in Sports and Active Living (2024/2025)", "doi": "10.3389/fspor.2024.1522214",
-        "url": "https://www.frontiersin.org/journals/sports-and-active-living/articles/10.3389/fspor.2024.1522214/full",
-        "verified": "secondary",
-        "verified_note": "Search summaries only (the publisher's site cannot be reached from the build environment): the ACSM walking and "
-                         "running equations disagree at 8 km/h and often lack accuracy; the proposed system reported a relative error of -0.03 "
-                         "against measured VO2.",
-        "used_for": ["Candidate for a more accurate oxygen-cost-of-running equation (NOT used in any calculation yet)"],
-        "how_used": "Not used. It is the reason the app does not build a VO2max method on the standard ACSM running equation.",
-        "limits": "Not read in full; the claims above come from summaries.",
+        "id": "latorre2025", "short": "Latorre-Roman et al. 2025", "kind": "paper",
+        "authors": "Latorre-Roman PA, Salas-Sanchez J, Aragon-Vela J", "year": 2025,
+        "title": "Influence of sex, athletic category and athletic level on marathon pacing strategy: an analysis of the Trinidad Alfonso "
+                 "EDP Valencia Marathon from 2014 to 2023",
+        "venue": "European Journal of Sport Science 25:e12329", "doi": "10.1002/ejsc.12329",
+        "url": "https://doi.org/10.1002/ejsc.12329",
+        "verified": "full_text",
+        "verified_note": "Full text read. 146,108 finishers analysed (official 5 km splits). Even pacing: 77.6% of women vs 74.3% of men; "
+                         "marathon time correlated with variability of speed (r = 0.551); a 'hit the wall' flag means a 30 or 35 km split more than "
+                         "7.3% slower than the race's other splits. Even-pacing share fell from age category M55 (men) and F45 (women).",
+        "used_for": ["Context for the marathon prediction caveats (slowing late in the race is common and varies with level)"],
+        "how_used": "Not a formula. It supports the warning that a marathon prediction from shorter efforts assumes you pace the race evenly.",
+        "limits": "Official-timing data from one race; shows what runners did, not what a given runner should do.",
+    },
+    {
+        "id": "wiecha2023", "short": "Wiecha et al. 2023 (PLOS ONE)", "kind": "paper",
+        "authors": "Wiecha S, Kasiak PS, Cieslinski I, Takken T, Palka T, Knechtle B, Nikolaidis PT, Malek LA, Postula M, Mamcarz A, Sliz D", "year": 2023,
+        "title": "External validation of VO2max prediction models based on recreational and elite endurance athletes",
+        "venue": "PLOS ONE 18(1):e0280897", "doi": "10.1371/journal.pone.0280897",
+        "url": "https://doi.org/10.1371/journal.pone.0280897",
+        "verified": "full_text",
+        "verified_note": "Full text read. 5,260 adult endurance athletes with laboratory-measured VO2max; 13 published prediction models tested. "
+                         "Agreement with measured values was low to moderate (best R2: 0.64 to 0.65 for cycling models, 0.26 to 0.30 for treadmill "
+                         "models); models under-estimated VO2max in younger, higher-trained athletes and over-estimated it in older, lower-trained ones.",
+        "used_for": ["Why every VO2max number in the app is labelled an estimate for tracking, not a measurement"],
+        "how_used": "Not a formula. It is the evidence that general VO2max equations transfer poorly to endurance athletes.",
+        "limits": "Tested equations that use age, sex, body size and activity level, not the race-time or heart-rate-ratio methods in this app.",
+    },
+    {
+        "id": "frontiers2024_acsm", "short": "Hata et al. 2025 (HYPAC)", "kind": "paper",
+        "authors": "Hata K, Yanagiya T, Noro H, Suzuki Y", "year": 2025,
+        "title": "Hata-Yanagiya physical activity calculation system: a novel global positioning system-based method for accurate "
+                 "estimation of oxygen consumption during walking and running",
+        "venue": "Frontiers in Sports and Active Living 6:1522214 (published 10 January 2025)", "doi": "10.3389/fspor.2024.1522214",
+        "url": "https://doi.org/10.3389/fspor.2024.1522214",
+        "verified": "full_text",
+        "verified_note": "Full text read. HYPAC estimates oxygen use DURING walking and running from GPS speed and slope: a regression on "
+                         "the Compendium of Physical Activities METs (threshold 8.69 km/h) times a slope-cost curve built from Minetti et al. "
+                         "2002 data. Tested on 10 university students (5 runners) over 5 km against a portable gas analyser: relative error "
+                         "-0.03 (95% CI -0.14 to 0.08). The two ACSM equations are inconsistent at exactly 8 km/h on flat ground.",
+        "used_for": ["Candidate cost-of-running model for a future submaximal VO2max method (NOT used in any calculation yet)"],
+        "how_used": "Not used. It estimates exercise oxygen use, not VO2max, and rests on only 10 young students, so it is too thinly "
+                    "validated to build a VO2max method on. It shares its slope data with the app's grade-adjusted pace (Minetti).",
+        "limits": "10 university students; one 5 km course; not endurance-trained athletes at race pace; authors call for larger validation.",
     },
     {
         "id": "acsm_athletes", "short": "ACSM equation in athletes (Hippokratia)", "kind": "paper",
@@ -183,16 +220,19 @@ REFERENCES: list[dict[str, Any]] = [
         "how_used": "Not used; evidence for caution.", "limits": "Summary only; one protocol, one athlete group.",
     },
     {
-        "id": "elife2023", "short": "eLife 2023: submaximal VO2max models", "kind": "paper",
-        "authors": "See source", "year": 2023,
+        "id": "elife2023", "short": "Wiecha et al. 2023 (eLife)", "kind": "paper",
+        "authors": "Wiecha S, Kasiak PS, Szwed P, Kowalski T, Cieslinski I, Postula M, Klusiewicz A", "year": 2023,
         "title": "VO2max prediction based on submaximal cardiorespiratory relationships and body composition in male runners and "
                  "cyclists: a population study",
-        "venue": "eLife (2023)", "doi": None, "url": "https://elifesciences.org/articles/86291",
-        "verified": "secondary",
-        "verified_note": "Search summary only (publisher site unreachable from the build environment): regression models for runners and "
-                         "cyclists with internal validation.",
-        "used_for": ["Modern evidence on submaximal prediction (NOT used: it needs laboratory-grade breathing data a watch does not record)"],
-        "how_used": "Not used.", "limits": "Males; needs measured cardiorespiratory variables and body composition.",
+        "venue": "eLife 12:e86291", "doi": "10.7554/eLife.86291", "url": "https://doi.org/10.7554/eLife.86291",
+        "verified": "full_text",
+        "verified_note": "Full text read. 4,424 male endurance athletes (3,330 treadmill runners, 1,094 cyclists) with laboratory gas-exchange tests. "
+                         "Runner models: from oxygen uptake and speed at the respiratory compensation point R2 = 0.899, validation RMSE 2.08 "
+                         "ml/kg/min; from body fat and age only R2 = 0.35, RMSE 5.54. Every strong model needs measured oxygen uptake at a "
+                         "threshold (a laboratory gas analyser).",
+        "used_for": ["Modern evidence on submaximal prediction (NOT used: it needs laboratory breathing data a watch does not record)"],
+        "how_used": "Not used. It shows what accuracy is possible with lab data (about +/-2 ml/kg/min) and how little age and body fat alone give (+/-5.5).",
+        "limits": "Men only (too few women to model); laboratory treadmill protocol; internal validation only.",
     },
     {
         "id": "firstbeat2017", "short": "Firstbeat white paper 2017", "kind": "analysis",

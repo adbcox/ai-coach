@@ -83,33 +83,53 @@ Tanaka H, Monahan KD, Seals DR (2001). Age-predicted maximal heart rate revisite
 
 ## Kasiak et al. 2023
 
-Kasiak P, et al. (2023). Validity of the maximal heart rate prediction models among runners and cyclists. Journal of Clinical Medicine (2023).
+Kasiak PS, Wiecha S, Cieslinski I, Takken T, Lach J, Lewandowski M, Barylski M, Mamcarz A, Sliz D (2023). Validity of the maximal heart rate prediction models among runners and cyclists. Journal of Clinical Medicine 12(8):2884. doi:10.3390/jcm12082884
 
-- Link: <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10146295/>
-- Checked: **Abstract and summaries read; full text not yet checked**. Abstract and search summaries read (5,069 endurance athletes tested against maximal exercise tests; 9 of 13 equations differed significantly from measured values; RMSE 9.1 to 10.5 bpm).
+- Link: <https://doi.org/10.3390/jcm12082884>
+- Checked: **Full text read and checked against what the app does**. Full text read. 4,043 runners (age 33.6, 83.5% men) and 1,026 cyclists tested to maximum in the laboratory. Measured HRmax in runners 184.6 (SD 9.8) bpm. 13 equations compared: 9 differed significantly from measured; RMSE 9.1 to 10.5 bpm; MAPE up to 4.7%. Tanaka in runners: bias -1.5 bpm, RMSE 9.2 bpm, MAPE 4.0%. 220 - age: bias -0.2, RMSE 9.8. HRmax was underestimated more often than overestimated. The authors' conclusion: use predictions only as a supplement, laboratory testing is preferable.
 - Used for: Why max heart rate is estimated from your own peaks rather than an age formula
-- How the app uses it: Evidence that age formulas carry errors of roughly 9 to 10 bpm for individual endurance athletes.
-- Limits: Laboratory tests; the authors recommend predictions only as a supplement to testing.
+- How the app uses it: Evidence that age formulas carry an individual error of about 9 to 10 bpm for endurance athletes, even the best of them.
+- Limits: Laboratory treadmill and cycle tests, mostly men; a peak from your own hard runs is not a laboratory maximum either, which is why the app shows the age formula next to it and lets you override the value.
 
-## Valencia Marathon study 2025
+## Valencia Marathon study 2025 (prediction equation)
 
 See source (2025). Performance prediction equation for the Valencia Marathon based on time and pacing in the half marathon. Open-access journal (see link).
 
 - Link: <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC12856576/>
-- Checked: **Abstract and summaries read; full text not yet checked**. Abstract only. Reported accuracy similar to the VDOT system but behaving differently by runner level.
+- Checked: **Abstract and summaries read; full text not yet checked**. Abstract only, and not the same paper as Latorre-Roman et al. 2025 (which is read in full and listed separately). Reported accuracy similar to the VDOT system but behaving differently by runner level. Full text still needed.
 - Used for: Context for half-to-marathon prediction and for showing several methods side by side
 - How the app uses it: Not a formula used by the app; informs the choice to show methods together instead of picking one.
-- Limits: One race, one population.
+- Limits: One race, one population. Authors and exact title not verified.
 
-## Frontiers 2024: ACSM equations
+## Latorre-Roman et al. 2025
 
-See source (2024). Article on the accuracy of the ACSM metabolic equations for walking and running, proposing the HYPAC system (Frontiers in Sports and Active Living, DOI 10.3389/fspor.2024.1522214; exact title not yet verified). Frontiers in Sports and Active Living (2024/2025). doi:10.3389/fspor.2024.1522214
+Latorre-Roman PA, Salas-Sanchez J, Aragon-Vela J (2025). Influence of sex, athletic category and athletic level on marathon pacing strategy: an analysis of the Trinidad Alfonso EDP Valencia Marathon from 2014 to 2023. European Journal of Sport Science 25:e12329. doi:10.1002/ejsc.12329
 
-- Link: <https://www.frontiersin.org/journals/sports-and-active-living/articles/10.3389/fspor.2024.1522214/full>
-- Checked: **Known from secondary sources (summaries, vendor pages); the original was not read**. Search summaries only (the publisher's site cannot be reached from the build environment): the ACSM walking and running equations disagree at 8 km/h and often lack accuracy; the proposed system reported a relative error of -0.03 against measured VO2.
-- Used for: Candidate for a more accurate oxygen-cost-of-running equation (NOT used in any calculation yet)
-- How the app uses it: Not used. It is the reason the app does not build a VO2max method on the standard ACSM running equation.
-- Limits: Not read in full; the claims above come from summaries.
+- Link: <https://doi.org/10.1002/ejsc.12329>
+- Checked: **Full text read and checked against what the app does**. Full text read. 146,108 finishers analysed (official 5 km splits). Even pacing: 77.6% of women vs 74.3% of men; marathon time correlated with variability of speed (r = 0.551); a 'hit the wall' flag means a 30 or 35 km split more than 7.3% slower than the race's other splits. Even-pacing share fell from age category M55 (men) and F45 (women).
+- Used for: Context for the marathon prediction caveats (slowing late in the race is common and varies with level)
+- How the app uses it: Not a formula. It supports the warning that a marathon prediction from shorter efforts assumes you pace the race evenly.
+- Limits: Official-timing data from one race; shows what runners did, not what a given runner should do.
+
+## Wiecha et al. 2023 (PLOS ONE)
+
+Wiecha S, Kasiak PS, Cieslinski I, Takken T, Palka T, Knechtle B, Nikolaidis PT, Malek LA, Postula M, Mamcarz A, Sliz D (2023). External validation of VO2max prediction models based on recreational and elite endurance athletes. PLOS ONE 18(1):e0280897. doi:10.1371/journal.pone.0280897
+
+- Link: <https://doi.org/10.1371/journal.pone.0280897>
+- Checked: **Full text read and checked against what the app does**. Full text read. 5,260 adult endurance athletes with laboratory-measured VO2max; 13 published prediction models tested. Agreement with measured values was low to moderate (best R2: 0.64 to 0.65 for cycling models, 0.26 to 0.30 for treadmill models); models under-estimated VO2max in younger, higher-trained athletes and over-estimated it in older, lower-trained ones.
+- Used for: Why every VO2max number in the app is labelled an estimate for tracking, not a measurement
+- How the app uses it: Not a formula. It is the evidence that general VO2max equations transfer poorly to endurance athletes.
+- Limits: Tested equations that use age, sex, body size and activity level, not the race-time or heart-rate-ratio methods in this app.
+
+## Hata et al. 2025 (HYPAC)
+
+Hata K, Yanagiya T, Noro H, Suzuki Y (2025). Hata-Yanagiya physical activity calculation system: a novel global positioning system-based method for accurate estimation of oxygen consumption during walking and running. Frontiers in Sports and Active Living 6:1522214 (published 10 January 2025). doi:10.3389/fspor.2024.1522214
+
+- Link: <https://doi.org/10.3389/fspor.2024.1522214>
+- Checked: **Full text read and checked against what the app does**. Full text read. HYPAC estimates oxygen use DURING walking and running from GPS speed and slope: a regression on the Compendium of Physical Activities METs (threshold 8.69 km/h) times a slope-cost curve built from Minetti et al. 2002 data. Tested on 10 university students (5 runners) over 5 km against a portable gas analyser: relative error -0.03 (95% CI -0.14 to 0.08). The two ACSM equations are inconsistent at exactly 8 km/h on flat ground.
+- Used for: Candidate cost-of-running model for a future submaximal VO2max method (NOT used in any calculation yet)
+- How the app uses it: Not used. It estimates exercise oxygen use, not VO2max, and rests on only 10 young students, so it is too thinly validated to build a VO2max method on. It shares its slope data with the app's grade-adjusted pace (Minetti).
+- Limits: 10 university students; one 5 km course; not endurance-trained athletes at race pace; authors call for larger validation.
 
 ## ACSM equation in athletes (Hippokratia)
 
@@ -121,15 +141,15 @@ See source. Indirect estimation of VO2max in athletes by ACSM's equation: valid 
 - How the app uses it: Not used; evidence for caution.
 - Limits: Summary only; one protocol, one athlete group.
 
-## eLife 2023: submaximal VO2max models
+## Wiecha et al. 2023 (eLife)
 
-See source (2023). VO2max prediction based on submaximal cardiorespiratory relationships and body composition in male runners and cyclists: a population study. eLife (2023).
+Wiecha S, Kasiak PS, Szwed P, Kowalski T, Cieslinski I, Postula M, Klusiewicz A (2023). VO2max prediction based on submaximal cardiorespiratory relationships and body composition in male runners and cyclists: a population study. eLife 12:e86291. doi:10.7554/eLife.86291
 
-- Link: <https://elifesciences.org/articles/86291>
-- Checked: **Known from secondary sources (summaries, vendor pages); the original was not read**. Search summary only (publisher site unreachable from the build environment): regression models for runners and cyclists with internal validation.
-- Used for: Modern evidence on submaximal prediction (NOT used: it needs laboratory-grade breathing data a watch does not record)
-- How the app uses it: Not used.
-- Limits: Males; needs measured cardiorespiratory variables and body composition.
+- Link: <https://doi.org/10.7554/eLife.86291>
+- Checked: **Full text read and checked against what the app does**. Full text read. 4,424 male endurance athletes (3,330 treadmill runners, 1,094 cyclists) with laboratory gas-exchange tests. Runner models: from oxygen uptake and speed at the respiratory compensation point R2 = 0.899, validation RMSE 2.08 ml/kg/min; from body fat and age only R2 = 0.35, RMSE 5.54. Every strong model needs measured oxygen uptake at a threshold (a laboratory gas analyser).
+- Used for: Modern evidence on submaximal prediction (NOT used: it needs laboratory breathing data a watch does not record)
+- How the app uses it: Not used. It shows what accuracy is possible with lab data (about +/-2 ml/kg/min) and how little age and body fat alone give (+/-5.5).
+- Limits: Men only (too few women to model); laboratory treadmill protocol; internal validation only.
 
 ## Firstbeat white paper 2017
 
