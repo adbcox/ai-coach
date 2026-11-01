@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json as _json
 import time
 from collections import defaultdict
 from collections.abc import Iterator
@@ -18,6 +19,7 @@ from . import __version__, db, diagnostics, security
 from .config import Settings
 from .crypto import SecretBox
 from .garmin.client import GarminError
+from .gpx import build_gpx
 from .sync import PROVIDER, ClientFactory, SyncManager, default_client_factory
 
 COOKIE = "aec_session"
@@ -200,21 +202,74 @@ def create_app(
 
     @app.get("/api/diagnostics/shapes")
     def diagnostics_shapes(_=Depends(current_user), conn=Depends(get_conn)) -> Response:
-        import json as _json
         body = _json.dumps(diagnostics.build(conn), indent=1)
         return Response(body, media_type="application/json", headers={
             "Content-Disposition": 'attachment; filename="data-shapes.json"'})
 
+    list_cols = ("id, source, source_id, start_time, sport, name, distance_m, duration_s, "
+                 "elevation_gain_m, avg_hr, max_hr, has_samples")
+
     @app.get("/api/activities")
-    def activities(limit: int = 50, offset: int = 0, _=Depends(current_user),
-                   conn=Depends(get_conn)) -> dict:
-        limit = max(1, min(limit, 200))
+    def activities(limit: int = 50, offset: int = 0, since: str | None = None,
+                   _=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        limit = max(1, min(limit, 500))
+        where, args = ("WHERE start_time >= ?", [since]) if since else ("", [])
         rows = conn.execute(
-            "SELECT id, source, source_id, start_time, sport, name, distance_m, duration_s, "
-            "elevation_gain_m, avg_hr, max_hr, has_samples FROM activities "
-            "ORDER BY start_time DESC LIMIT ? OFFSET ?", (limit, max(0, offset))).fetchall()
-        total = conn.execute("SELECT COUNT(*) AS n FROM activities").fetchone()["n"]
+            f"SELECT {list_cols} FROM activities {where} "  # noqa: S608
+            "ORDER BY start_time DESC LIMIT ? OFFSET ?", (*args, limit, max(0, offset))).fetchall()
+        total = conn.execute(f"SELECT COUNT(*) AS n FROM activities {where}", args).fetchone()["n"]  # noqa: S608
         return {"total": total, "items": [dict(r) for r in rows]}
+
+    def get_activity(conn, activity_id: int):
+        row = conn.execute("SELECT * FROM activities WHERE id=?", (activity_id,)).fetchone()
+        if row is None:
+            raise HTTPException(404, "Activity not found.")
+        return row
+
+    @app.get("/api/activities/{activity_id}")
+    def activity_detail(activity_id: int, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        row = get_activity(conn, activity_id)
+        out = {k: row[k] for k in row.keys() if k not in ("summary_json", "file_path")}
+        try:
+            out["summary"] = _json.loads(row["summary_json"] or "null")
+        except ValueError:
+            out["summary"] = None
+        return out
+
+    @app.get("/api/activities/{activity_id}/samples")
+    def activity_samples(activity_id: int, max_points: int = 1500, _=Depends(current_user),
+                         conn=Depends(get_conn)) -> dict:
+        get_activity(conn, activity_id)
+        max_points = max(50, min(max_points, 5000))
+        rows = conn.execute(
+            "SELECT t, lat, lon, alt, hr, cadence, power, speed, dist FROM samples "
+            "WHERE activity_id=? ORDER BY t", (activity_id,)).fetchall()
+        total = len(rows)
+        if total > max_points:
+            stride = -(-total // max_points)
+            picked = rows[::stride]
+            if picked[-1] is not rows[-1]:
+                picked.append(rows[-1])
+            rows = picked
+        t0 = rows[0]["t"] if rows else 0
+        cols = ("lat", "lon", "alt", "hr", "cadence", "power", "speed", "dist")
+        data = {"t": [r["t"] - t0 for r in rows], "start_unix": t0, "total_samples": total}
+        for c in cols:
+            data[c] = [r[c] for r in rows]
+        return data
+
+    @app.get("/api/activities/{activity_id}/gpx")
+    def activity_gpx(activity_id: int, _=Depends(current_user), conn=Depends(get_conn)) -> Response:
+        row = get_activity(conn, activity_id)
+        pts = conn.execute(
+            "SELECT t, lat, lon, alt, hr, cadence FROM samples WHERE activity_id=? "
+            "AND lat IS NOT NULL AND lon IS NOT NULL ORDER BY t", (activity_id,)).fetchall()
+        if not pts:
+            raise HTTPException(404, "This activity has no GPS track.")
+        return Response(
+            build_gpx(row["name"] or f"Activity {activity_id}", pts),
+            media_type="application/gpx+xml",
+            headers={"Content-Disposition": f'attachment; filename="activity-{activity_id}.gpx"'})
 
     static = settings.static_dir
     if static and (static / "index.html").exists():

@@ -84,3 +84,60 @@ def test_sync_end_to_end_and_idempotent(authed, fake, settings):
 def test_key_removal(authed):
     authed.put("/api/providers/garmin", json={"api_key": API_KEY})
     assert authed.delete("/api/providers/garmin").json()["configured"] is False
+
+
+def _synced(authed):
+    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
+    authed.post("/api/sync")
+    wait_idle(authed)
+    return authed.get("/api/activities").json()["items"]
+
+
+def test_activity_detail_samples_and_gpx(authed):
+    import xml.etree.ElementTree as ET
+    items = _synced(authed)
+    aid = items[0]["id"]
+    d = authed.get(f"/api/activities/{aid}").json()
+    assert d["id"] == aid and d["summary"]["activityId"] in (111, 222)
+    s = authed.get(f"/api/activities/{aid}/samples?max_points=50").json()
+    assert s["total_samples"] == 5 and len(s["t"]) == 5 and s["t"][0] == 0
+    assert abs(s["lat"][0] - 49.28) < 1e-3
+    g = authed.get(f"/api/activities/{aid}/gpx")
+    assert g.status_code == 200 and "gpx" in g.headers["content-type"]
+    root = ET.fromstring(g.text)
+    ns = {"g": "http://www.topografix.com/GPX/1/1"}
+    assert len(root.findall(".//g:trkpt", ns)) == 5
+    assert authed.get("/api/activities/99999").status_code == 404
+
+
+def test_samples_are_downsampled(authed, settings):
+    items = _synced(authed)
+    aid = items[0]["id"]
+    from app import db
+    conn = db.connect(settings.db_path)
+    conn.executemany(
+        "INSERT OR IGNORE INTO samples (activity_id, t, lat, lon, speed) VALUES (?,?,?,?,?)",
+        [(aid, 2_000_000_000 + i, 49.0, -123.0, 3.0) for i in range(3000)])
+    conn.commit()
+    conn.close()
+    s = authed.get(f"/api/activities/{aid}/samples?max_points=100").json()
+    assert s["total_samples"] >= 3000 and 50 <= len(s["t"]) <= 110
+
+
+def test_activity_list_since_filter(authed):
+    _synced(authed)
+    all_ = authed.get("/api/activities").json()
+    assert all_["total"] == 2
+    cut = authed.get("/api/activities?since=2999-01-01").json()
+    assert cut["total"] == 0 and cut["items"] == []
+
+
+def test_concurrent_requests_do_not_hit_sqlite_thread_errors(authed):
+    from concurrent.futures import ThreadPoolExecutor
+
+    def hit(_):
+        return authed.get("/api/activities").status_code
+
+    with ThreadPoolExecutor(16) as pool:
+        codes = list(pool.map(hit, range(200)))
+    assert set(codes) == {200}

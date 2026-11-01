@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Endurance Coach">
+  <rect width="32" height="32" rx="7" fill="#1f6feb"/>
+  <g fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="19.5" cy="7" r="2.3" fill="#fff" stroke="none"/>
+    <!-- torso -->
+    <path d="M17.5 11.5 L14.5 17.5"/>
+    <!-- front arm (forward, bent) -->
+    <path d="M17.5 11.5 L21.5 14 L24.5 12.5"/>
+    <!-- back arm -->
+    <path d="M17.5 11.5 L13.5 12.5 L11.5 15.5"/>
+    <!-- front leg (knee up) -->
+    <path d="M14.5 17.5 L18.5 20 L17.5 25.5"/>
+    <!-- back leg (push-off) -->
+    <path d="M14.5 17.5 L11 21 L6.5 20.5"/>
+  </g>
+</svg>

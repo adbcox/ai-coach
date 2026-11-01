@@ -22,6 +22,12 @@ markitdown, trafilatura, youtube-transcript-api, yt-dlp, faster-whisper,
 fitdecode, gpxpy, fastapi, uvicorn); every package's license was
 queried and flagged if GPL/AGPL/LGPL/non-commercial/unknown.
 
+Frontend (checked 2026-11-01 with `npm view`): leaflet BSD-2-Clause, uPlot
+MIT, @types/leaflet MIT. React, Vite and TypeScript are the usual
+MIT/MIT/Apache-2.0 (not re-queried). Map tiles come from OpenStreetMap
+(ODbL data; attribution shown in the map). OSM's tile usage policy applies
+to heavy use and has not been reviewed here.
+
 Findings:
 
 - **`tld`** (via trafilatura's dependency chain): `MPL-1.1 OR GPL-2.0-only

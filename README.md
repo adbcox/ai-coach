@@ -1,8 +1,10 @@
+<p align="center"><img src="frontend/public/logo.svg" width="96" alt="AI Endurance Coach logo"></p>
+
 # AI Endurance Coach
 
 Self-hosted, AI-optional endurance training dashboard: Garmin sync, run analysis and a literature ingest area, in a single Docker container.
 
-> **Status: pre-alpha, v0.1 skeleton.** First-run setup, login, encrypted Garmin key and Garmin activity sync work; dashboard charts and maps are next. See the [roadmap](docs/roadmap.md) and [install guide](docs/install.md). Default port: **26219**.
+> **Status: pre-alpha.** First-run setup, login, encrypted Garmin key, full-history Garmin sync, a 14-day dashboard and a run detail page (map, linked charts, GPX download) work; recovery views, literature ingest and agent access are next. See the [roadmap](docs/roadmap.md) and [install guide](docs/install.md). Default port: **26219**.
 
 ## Disclaimer: vibe-coded, use at your own risk
 

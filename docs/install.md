@@ -92,7 +92,11 @@ for the current official steps see docs.unraid.net.)
    stopped. After that it only fetches what is new, every 6 hours
    (`AEC_SYNC_INTERVAL_HOURS`, `0` disables). **Re-sync all history** re-scans
    everything and fills any gaps.
-4. **Activities** lists what was imported.
+4. **Dashboard** shows the last 14 days; **Activities** lists everything imported, and clicking one opens its map and charts.
+
+The map loads tiles from `tile.openstreetmap.org` in **your browser**, so
+the machine you browse from needs internet access (the server does not).
+Charts and stats work without it.
 
 The activity-list response from Garmin has not been checked against a live
 account in the build environment (it could not reach Garmin), so the first

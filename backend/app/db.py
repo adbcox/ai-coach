@@ -94,7 +94,9 @@ CREATE TABLE IF NOT EXISTS sync_runs (
 
 def connect(path: Path) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(path, timeout=30)
+    # Each request/job uses its own connection, one thread at a time; FastAPI may set the
+    # connection up in one worker thread and use it in another, so allow that.
+    conn = sqlite3.connect(path, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")

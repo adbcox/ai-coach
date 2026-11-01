@@ -76,3 +76,21 @@ export interface ActivityList {
   total: number;
   items: Activity[];
 }
+
+export interface ActivityDetail extends Activity {
+  summary: Record<string, unknown> | null;
+}
+
+export interface SamplesData {
+  t: number[];
+  start_unix: number;
+  total_samples: number;
+  lat: (number | null)[];
+  lon: (number | null)[];
+  alt: (number | null)[];
+  hr: (number | null)[];
+  cadence: (number | null)[];
+  power: (number | null)[];
+  speed: (number | null)[];
+  dist: (number | null)[];
+}

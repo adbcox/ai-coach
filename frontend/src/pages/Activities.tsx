@@ -10,7 +10,7 @@ const dur = (s: number | null) => {
   return `${h ? h + ":" : ""}${String(m).padStart(h ? 2 : 1, "0")}:${String(sec).padStart(2, "0")}`;
 };
 
-export default function Activities({ goSettings }: { goSettings: () => void }) {
+export default function Activities({ goSettings, open }: { goSettings: () => void; open: (id: number) => void }) {
   const [data, setData] = useState<ActivityList | null>(null);
   const [error, setError] = useState("");
 
@@ -42,7 +42,7 @@ export default function Activities({ goSettings }: { goSettings: () => void }) {
         </thead>
         <tbody>
           {data.items.map((a: Activity) => (
-            <tr key={a.id}>
+            <tr key={a.id} className="click" onClick={() => open(a.id)}>
               <td>{new Date(a.start_time).toLocaleDateString()}</td>
               <td>{a.sport ?? "–"}</td>
               <td>{a.name ?? "–"}</td>
