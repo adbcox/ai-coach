@@ -6,6 +6,8 @@ import Activities from "./pages/Activities";
 import ActivityDetail from "./pages/ActivityDetail";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import Library from "./pages/Library";
+import LibraryItem from "./pages/LibraryItem";
 import Predict from "./pages/Predict";
 import Recovery from "./pages/Recovery";
 import References from "./pages/References";
@@ -16,6 +18,7 @@ const ICONS: Record<string, string> = {
   activities: "M4 6h16M4 12h16M4 18h10",
   predict: "M12 8v5l3 2M9 2h6M12 4a9 9 0 100 18 9 9 0 000-18z",
   recovery: "M3 12h4l3-8 4 16 3-8h4",
+  library: "M4 4h5a3 3 0 013 3v13a2 2 0 00-2-2H4V4zm16 0h-5a3 3 0 00-3 3v13a2 2 0 012-2h6V4z",
   settings: "M12 8a4 4 0 100 8 4 4 0 000-8zm8 4l2-1-2-3-2 .6a7 7 0 00-1.5-1L16 5h-4l-.5 2.6a7 7 0 00-1.5 1L8 8 6 11l2 1a7 7 0 000 2l-2 1 2 3 2-.6a7 7 0 001.5 1L12 22h4l.5-2.6a7 7 0 001.5-1l2 .6 2-3-2-1a7 7 0 000-2z",
 };
 
@@ -27,7 +30,7 @@ function Icon({ name }: { name: string }) {
   );
 }
 
-type Route = { name: "dashboard" | "activities" | "predict" | "recovery" | "settings" } | { name: "activity"; id: number } | { name: "references"; id?: string };
+type Route = { name: "dashboard" | "activities" | "predict" | "recovery" | "library" | "settings" } | { name: "activity"; id: number } | { name: "references"; id?: string } | { name: "libraryItem"; id: string };
 
 function parseHash(): Route {
   const h = window.location.hash.replace(/^#\/?/, "");
@@ -35,7 +38,9 @@ function parseHash(): Route {
   if (m) return { name: "activity", id: Number(m[1]) };
   const r = h.match(/^references(?:\/([a-z0-9_]+))?$/);
   if (r) return { name: "references", id: r[1] };
-  if (h === "activities" || h === "predict" || h === "recovery" || h === "settings") return { name: h };
+  const li = h.match(/^library\/([a-z0-9][a-z0-9._-]*)$/);
+  if (li) return { name: "libraryItem", id: li[1] };
+  if (h === "activities" || h === "predict" || h === "recovery" || h === "library" || h === "settings") return { name: h };
   return { name: "dashboard" };
 }
 
@@ -65,13 +70,13 @@ export default function App() {
   if (session.setup_required) return <Auth mode="setup" onDone={refresh} />;
   if (!session.authenticated) return <Auth mode="login" onDone={refresh} />;
 
-  const tab = route.name === "activity" ? "activities" : route.name === "references" ? "settings" : route.name;
+  const tab = route.name === "activity" ? "activities" : route.name === "references" ? "settings" : route.name === "libraryItem" ? "library" : route.name;
   return (
     <div className="shell">
       <header>
         <a className="brand" href="#/"><img src="/logo.svg" alt="" width="26" height="26" /><strong>Endurance Coach</strong><VersionBadge /></a>
         <nav>
-          {(["dashboard", "activities", "predict", "recovery", "settings"] as const).map((t) => (
+          {(["dashboard", "activities", "predict", "recovery", "library", "settings"] as const).map((t) => (
             <button key={t} className={tab === t ? "active" : ""} onClick={() => go(t === "dashboard" ? "" : t)}>
               {t === "predict" ? "Predict" : t[0].toUpperCase() + t.slice(1)}
             </button>
@@ -88,10 +93,12 @@ export default function App() {
         {route.name === "predict" && <Predict goSettings={() => go("settings")} />}
         {route.name === "recovery" && <Recovery goSettings={() => go("settings")} />}
         {route.name === "references" && <References focus={route.id} />}
+        {route.name === "library" && <Library />}
+        {route.name === "libraryItem" && <LibraryItem id={route.id} />}
         {route.name === "settings" && <Settings onRestored={refresh} />}
       </main>
       <nav className="tabbar" aria-label="Main">
-        {(["dashboard", "activities", "predict", "recovery", "settings"] as const).map((t) => (
+        {(["dashboard", "activities", "predict", "recovery", "library", "settings"] as const).map((t) => (
           <button key={t} className={tab === t ? "active" : ""} onClick={() => go(t === "dashboard" ? "" : t)}>
             <Icon name={t} />
             <span>{t === "predict" ? "Predict" : t[0].toUpperCase() + t.slice(1)}</span>

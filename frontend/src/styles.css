@@ -152,3 +152,25 @@ details.method details.method { margin-top: 6px; }
 details.card > summary { padding: 2px 0; }
 
 .version { font-size: 11px; font-weight: 500; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 1px 7px; margin-left: 2px; white-space: nowrap; }
+
+/* Library */
+.drop { display: grid; gap: 4px; place-items: center; text-align: center; border: 2px dashed var(--line); border-radius: 10px; padding: 22px 12px; cursor: pointer; color: var(--muted); }
+.drop.over, .drop:hover { border-color: var(--accent); color: var(--text); }
+.drop input { display: none; }
+.libitem { display: grid; gap: 4px; padding: 12px 0; border-top: 1px solid var(--line); color: inherit; text-decoration: none; }
+.libitem:first-child { border-top: 0; }
+.libitem .title { font-weight: 600; }
+.libitem mark, .snip mark { background: color-mix(in srgb, var(--accent) 25%, transparent); color: inherit; border-radius: 2px; }
+.snip { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.tag { font-size: 12px; padding: 0 7px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; }
+.tabs button.active { border-bottom-color: var(--accent); color: var(--accent); }
+.md { line-height: 1.6; overflow-wrap: anywhere; max-width: 78ch; }
+.md h1, .md h2, .md h3 { margin: 1.2em 0 .4em; line-height: 1.25; }
+.md p { margin: .6em 0; } .md table { border-collapse: collapse; display: block; overflow-x: auto; }
+.md th, .md td { border: 1px solid var(--line); padding: 4px 8px; } .md blockquote { margin: .6em 0; padding-left: 12px; border-left: 3px solid var(--line); color: var(--muted); }
+.md code, .md pre { background: color-mix(in srgb, var(--muted) 14%, transparent); border-radius: 4px; } .md code { padding: 0 4px; } .md pre { padding: 8px; overflow-x: auto; }
+textarea.notes { width: 100%; min-height: 260px; font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); resize: vertical; }
+.ok-text { color: #1a7f37; }

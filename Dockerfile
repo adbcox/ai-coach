@@ -31,5 +31,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \
   CMD python -c "import os,urllib.request;urllib.request.urlopen('http://127.0.0.1:%s/api/health'%os.environ.get('PORT','26219'),timeout=4)"
 CMD ["python", "-m", "app"]
 
-# Future: a `full` target extending `slim` with the ingest converters
-# (Docling etc., CPU-only PyTorch). Not built yet (roadmap v0.3).
+# Future: a `full` target extending `slim` with heavier converters (OCR via Docling,
+# YouTube transcripts; CPU-only PyTorch). The slim image already converts PDFs, web
+# pages, Markdown and text (pypdf, trafilatura) since v0.6.0.

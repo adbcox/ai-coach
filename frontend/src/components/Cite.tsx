@@ -4,7 +4,7 @@ import { api } from "../api";
 export interface Reference {
   id: string; short: string; kind: string; authors: string; year: number | null; title: string; venue: string;
   doi: string | null; url: string | null; verified: "full_text" | "abstract" | "secondary" | "documentation";
-  verified_label: string; verified_note: string; used_for: string[]; how_used: string; limits: string;
+  verified_label: string; verified_note: string; your_copy?: { id: string; status: string } | null; used_for: string[]; how_used: string; limits: string;
 }
 export const VERIFIED_CLASS: Record<string, string> = { full_text: "ok", abstract: "warn", secondary: "warn", documentation: "warn" };
 

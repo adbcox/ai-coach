@@ -1,7 +1,25 @@
 # Ingest area
 
-- Lives on the server's mounted volume (`data/ingest/`), **never in git**.
-- Planned for roadmap v0.3 (conversion) and v0.5 (actionable distillation).
+- Lives on the server's mounted volume (`data/ingest/`), **never in git and never in the Docker image**.
+- **Built in v0.6.0 as the Library** (the Library tab): conversion to Markdown with no AI, search, your own notes, citations.
+  Still to come: automatic distillation into `1-actionable/` (needs an AI connection) and OCR / YouTube (a heavier `full` image).
+
+## What v0.6.0 does
+
+| You do | The app does |
+| --- | --- |
+| Drop one or many files on the Library page (PDF, `.html`, `.md`, `.txt`) | Keeps the original in `3-source/`, converts it to `2-fulltext/<id>.md` with a front-matter header (title, authors, year, DOI, converter, page and word counts), de-duplicates by file hash and DOI |
+| Paste a DOI | Looks up the citation on Crossref (only the DOI is sent) and saves a *citation only* entry you can attach the PDF to later |
+| Paste a link to an article or PDF | Downloads it (only public internet addresses are allowed), converts it with trafilatura or pypdf. Publisher pages that block automated downloads are reported, and you upload the PDF instead |
+| Type a citation | Saves a *citation only* entry |
+| Copy files into `ingest/inbox/` on the server | Converts them on the next scan (within a minute, or press **Scan folder**) |
+| Write notes on a paper | Saves them as `1-actionable/<id>.md` from the template below, status `draft` until you mark it `reviewed` |
+| Edit tags, evidence type, details | Rewrites the header of the Markdown file; the files stay the source of truth and the search index is rebuilt from them |
+| Search | Full-text search across titles, authors, tags, your notes and the paper text (SQLite FTS5) |
+
+Honest limits: PDF conversion is text extraction, so tables, figures, equations and two-column layouts can come out garbled. Scanned
+PDFs are kept and flagged *needs OCR* (no text is produced). The Library says so on every item, and keeps the original so a better
+converter can re-run later ("Convert again"). Page markers (`— page 3 —`) are inserted so a note can point to where a claim is.
 
 Drop studies, videos, articles, coach methods and personal context here.
 Each source is kept in up to three forms, one folder per form, same

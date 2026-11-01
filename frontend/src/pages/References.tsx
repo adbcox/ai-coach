@@ -38,6 +38,7 @@ export default function References({ focus }: { focus?: string }) {
             {r.url && <> <a href={r.url} target="_blank" rel="noreferrer">link</a></>}
           </p>
           <p className="muted" style={{ margin: 0 }}><strong>Checked:</strong> {r.verified_note}</p>
+          <p style={{ margin: 0 }}>{r.your_copy ? <>Your copy: <a href={`#/library/${r.your_copy.id}`}>open it in the Library</a></> : <a href="#/library">Attach your own copy in the Library</a>}</p>
           <p style={{ margin: 0 }}><strong>Used for:</strong> {r.used_for.join("; ")}</p>
           <p style={{ margin: 0 }}><strong>How the app uses it:</strong> {r.how_used}</p>
           <p style={{ margin: 0 }}><strong>Limits:</strong> {r.limits}</p>

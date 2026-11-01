@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.6.0
+
+Added
+- **Library** (new tab): feed in a bunch of papers. Drop PDFs, web pages (.html), Markdown or text, many at once, or paste a
+  link or a DOI, or type a citation. Every source becomes a real Markdown file (with a header holding title, authors, year,
+  DOI and how it was converted) in `ingest/2-fulltext/`, the untouched original in `ingest/3-source/`, and optionally your own
+  notes in `ingest/1-actionable/`. No AI is involved: conversion uses pypdf and trafilatura.
+- Read each paper in the app (rendered Markdown, or the raw file), search across titles, authors, tags, your notes and the
+  full text with highlighted matches, filter by tag or "needs attention" / "not reviewed", edit details, tags and evidence type,
+  mark a source "reviewed", and write notes from the three-tier template (draft until you mark them reviewed).
+- DOIs are looked up on Crossref (only the DOI is sent) to fill in authors, year and journal, also for uploaded PDFs that contain a
+  DOI. Duplicates are caught by file hash and DOI.
+- Attach your own copy of any source the app cites (they are listed in the Library and on the Sources and credits page).
+- Drop files into `ingest/inbox/` on the server and they are converted within a minute (or press Scan folder). Files you write
+  or copy into the folders by hand are picked up too: the files are the source of truth and the search index is rebuilt from them.
+- Scanned PDFs are kept and flagged "needs OCR" rather than silently producing nothing; "Convert again" re-runs a conversion
+  from the original and keeps everything you wrote.
+
+Security and privacy
+- Links can only point at public internet addresses (not this machine or your network), including after redirects; downloads are
+  size-limited; Markdown is rendered with raw HTML switched off and images not loaded.
+- Papers are stored only in your data volume. They are included in your backups, never in git (`*.pdf` is ignored) or the image.
+
+Notes
+- The image grows by about 40 MB (pypdf, trafilatura and its HTML tools).
+- PDF conversion is text extraction: tables, figures and equations can come out garbled. Every item says so and keeps the original.
+
 ## 0.5.1
 
 Changed

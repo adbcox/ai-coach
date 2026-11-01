@@ -11,6 +11,7 @@ import uuid
 from collections import defaultdict
 from collections.abc import Iterator
 from datetime import UTC, date, datetime
+from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
@@ -23,6 +24,7 @@ from . import (
     db,
     diagnostics,
     efforts,
+    fetch,
     maxhr,
     predict,
     recovery,
@@ -39,6 +41,8 @@ from .config import Settings
 from .crypto import SecretBox
 from .garmin.client import GarminError
 from .gpx import build_gpx
+from .library import Library
+from .library_routes import make_router
 from .sync import PROVIDER, ClientFactory, SyncManager, default_client_factory
 
 COOKIE = "aec_session"
@@ -104,6 +108,9 @@ def create_app(
     client_factory: ClientFactory = default_client_factory,
     *,
     start_scheduler: bool = True,
+    library_transport: Any = None,
+    library_resolver: Any = None,
+    library_lookups: bool = True,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     db.init_db(settings.db_path)
@@ -117,10 +124,44 @@ def create_app(
         _conn.commit()
     finally:
         _conn.close()
+    lib = Library(settings.data_dir / "ingest", transport=library_transport,
+                  resolver=library_resolver or fetch.system_resolver, lookup_citations=library_lookups)
+    lib.ensure_dirs()
+    _conn = db.connect(settings.db_path)
+    try:
+        lib.init_schema(_conn)
+        lib.rescan(_conn)
+    except Exception:  # a bad file in the library must never stop the app starting
+        pass
+    finally:
+        _conn.close()
     scanner = efforts.EffortScanner(settings)
     manager = SyncManager(settings, box, client_factory, after_sync=scanner.start)
     failures: dict[str, list[float]] = defaultdict(list)
     backups = backup.BackupManager(settings, box)
+
+    def reindex_library() -> None:
+        c = db.connect(settings.db_path)
+        try:
+            lib.init_schema(c)
+            c.execute("DELETE FROM library_items")
+            if lib.fts:
+                c.execute("DELETE FROM library_fts")
+            c.commit()
+            lib.rescan(c)
+        except Exception:  # never fail a restore because of a bad library file
+            pass
+        finally:
+            c.close()
+
+    def scan_library_inbox() -> None:
+        inbox = lib.dir("inbox")
+        if inbox.exists() and any(p.is_file() and not p.name.endswith((".part", ".rejected", ".txt")) for p in inbox.iterdir()):
+            c = db.connect(settings.db_path)
+            try:
+                lib.rescan(c)
+            finally:
+                c.close()
 
     @contextlib.asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -133,6 +174,7 @@ def create_app(
                     try:
                         await asyncio.to_thread(manager.maybe_run_scheduled)
                         await asyncio.to_thread(backups.maybe_run_scheduled)
+                        await asyncio.to_thread(scan_library_inbox)
                     except Exception:  # keep the scheduler alive whatever happens
                         pass
             task = asyncio.create_task(loop())
@@ -152,6 +194,7 @@ def create_app(
     app.state.sync_manager = manager
     app.state.effort_scanner = scanner
     app.state.backup_manager = backups
+    app.state.library = lib
 
     def get_conn() -> Iterator:
         conn = db.connect(settings.db_path)
@@ -384,6 +427,7 @@ def create_app(
                     backup.restore_backup, settings, box, upload, passphrase=passphrase)
             except backup.RestoreError as exc:
                 raise HTTPException(400, str(exc)) from exc
+            await asyncio.to_thread(reindex_library)  # the restored database may predate the Library; rebuild its index from the files
             return {"ok": True, **summary}
         finally:
             upload.unlink(missing_ok=True)
@@ -509,9 +553,13 @@ def create_app(
     def weight_get(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
         return {"history": bodymod.weight_history(conn)[-365:]}
 
+    app.include_router(make_router(lib, get_conn, current_user))
+
     @app.get("/api/references")
-    def references_list(_=Depends(current_user)) -> dict:
-        return {"verified_levels": references.VERIFIED, "references": references.all_references()}
+    def references_list(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        copies = lib.copies_by_ref(conn)
+        return {"verified_levels": references.VERIFIED,
+                "references": [{**r, "your_copy": copies.get(r["id"])} for r in references.all_references()]}
 
     @app.get("/api/maxhr")
     def maxhr_get(_=Depends(current_user), conn=Depends(get_conn)) -> dict:

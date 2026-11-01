@@ -7,7 +7,8 @@ This repo is MIT; everything below is permissive, so MIT stays.
 | --- | --- | --- |
 | docling | PDF/image conversion, OCR | MIT |
 | markitdown | Office/HTML conversion | MIT |
-| trafilatura | Article extraction | Apache-2.0 |
+| trafilatura | Article extraction (built in, v0.6.0) | Apache-2.0 |
+| pypdf | PDF text extraction (built in, v0.6.0) | BSD-3-Clause |
 | youtube-transcript-api | YouTube captions | MIT |
 | yt-dlp | Subtitles / audio download | Unlicense |
 | faster-whisper | Local transcription (optional) | MIT |
@@ -25,7 +26,9 @@ fitdecode, gpxpy, fastapi, uvicorn); every package's license was
 queried and flagged if GPL/AGPL/LGPL/non-commercial/unknown.
 
 Frontend (checked 2026-11-01 with `npm view`): leaflet BSD-2-Clause, uPlot
-MIT, @types/leaflet MIT. React, Vite and TypeScript are the usual
+MIT, @types/leaflet MIT, markdown-it (Library, v0.6.0) MIT. trafilatura's own dependencies were checked against the installed
+packages on 2026-11-01: lxml, lxml_html_clean, dateparser, babel, python-dateutil BSD-3-Clause; courlan, htmldate, tzdata Apache-2.0;
+jusText BSD-2-Clause; charset_normalizer, pytz, tzlocal, urllib3 MIT; regex Apache-2.0 AND CNRI-Python; tld as in the findings below. React, Vite and TypeScript are the usual
 MIT/MIT/Apache-2.0 (not re-queried). Map tiles come from OpenStreetMap
 (ODbL data; attribution shown in the map). OSM's tile usage policy applies
 to heavy use and has not been reviewed here.
