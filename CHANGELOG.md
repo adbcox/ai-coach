@@ -7,7 +7,9 @@ New
   range, resting heart rate, Body Battery and stress, 30 days to 1 year.
 - **Weekly mileage chart** on the dashboard: rolling 7-day total in km per week
   (was km per day), next to the rolling 7-day longest run.
-- Dashboard opens on **Running** (remembered); new **Hiking** group; treadmill,
+- **Default sport setting** (Settings, Preferences): choose which sport the dashboard opens on
+  (Running unless you change it; saved on the server, so it applies on every device).
+- Dashboard opens on **Running** by default; new **Hiking** group; treadmill,
   trail and track runs count as running.
 - **Activities list** loads 100 at a time with "Show more" and sport filters.
 - Run detail: **heart-rate zone time bars** (Strava colours), running dynamics

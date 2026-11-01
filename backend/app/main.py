@@ -51,6 +51,13 @@ class SmbConfig(BaseModel):
     keep: int = Field(default=14, ge=1, le=365)
 
 
+SPORT_GROUPS = ["All", "Running", "Cycling", "Hiking", "Other"]
+
+
+class Preferences(BaseModel):
+    default_sport: str
+
+
 class BackupRequest(BaseModel):
     passphrase: str | None = Field(default=None, max_length=256)
 
@@ -350,6 +357,24 @@ def create_app(
             upload.unlink(missing_ok=True)
             backups.lock.release()
             manager.release_exclusive()
+
+    def read_prefs(conn) -> dict:
+        row = conn.execute("SELECT value FROM sync_state WHERE key='pref_default_sport'").fetchone()
+        sport = row["value"] if row and row["value"] in SPORT_GROUPS else "Running"
+        return {"default_sport": sport, "sport_options": SPORT_GROUPS}
+
+    @app.get("/api/preferences")
+    def prefs_get(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        return read_prefs(conn)
+
+    @app.put("/api/preferences")
+    def prefs_put(body: Preferences, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        if body.default_sport not in SPORT_GROUPS:
+            raise HTTPException(400, f"default_sport must be one of {', '.join(SPORT_GROUPS)}.")
+        conn.execute("INSERT INTO sync_state (key, value) VALUES ('pref_default_sport', ?) "
+                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (body.default_sport,))
+        conn.commit()
+        return read_prefs(conn)
 
     @app.get("/api/recovery")
     def recovery_days(days: int = 90, _=Depends(current_user), conn=Depends(get_conn)) -> dict:

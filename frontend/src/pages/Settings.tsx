@@ -6,6 +6,41 @@ import { intervalLabel, useSync } from "../lib/useSync";
 const KEY_PAGE = "https://connect.garmin.com/app/settings/personalApiToken";
 const DOCS = "https://developer.garmin.com/gc-developer-program/personal/personal-api/";
 
+function Preferences() {
+  const [sport, setSport] = useState("");
+  const [options, setOptions] = useState<string[]>([]);
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    api<{ default_sport: string; sport_options: string[] }>("/preferences")
+      .then((p) => { setSport(p.default_sport); setOptions(p.sport_options); })
+      .catch(() => undefined);
+  }, []);
+  async function change(value: string) {
+    setSport(value);
+    setSaved(false);
+    try {
+      await api("/preferences", "PUT", { default_sport: value });
+      setSaved(true);
+    } catch { /* leave unsaved */ }
+  }
+  if (!options.length) return null;
+  return (
+    <section className="card wide">
+      <h2>Preferences</h2>
+      <label>
+        Dashboard starts on
+        <select value={sport} onChange={(e) => change(e.target.value)}>
+          {options.map((o) => <option key={o} value={o}>{o === "All" ? "All sports" : o}</option>)}
+        </select>
+      </label>
+      <span className="muted">
+        Sets which sport the dashboard shows when you open it (mileage, rolling charts, latest activities).
+        You can still switch sport on the dashboard itself. {saved && <strong>Saved.</strong>}
+      </span>
+    </section>
+  );
+}
+
 function Version() {
   const [v, setV] = useState("");
   useEffect(() => {
@@ -156,6 +191,7 @@ export default function Settings({ onRestored }: { onRestored: () => void }) {
         </p>
       )}
     </section>
+    <Preferences />
     <Backups onRestored={onRestored} />
     <Version />
     </div>

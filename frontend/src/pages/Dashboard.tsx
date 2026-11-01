@@ -6,18 +6,10 @@ import { duration, km, lastDays, localDay, sportGroup, SportGroup } from "../lib
 import { ago, useSync } from "../lib/useSync";
 
 const FILTERS: ("All" | SportGroup)[] = ["All", "Running", "Cycling", "Hiking", "Other"];
-const KEY = "aec.dashboard.filter";
-function savedFilter(): (typeof FILTERS)[number] {
-  try {
-    const v = localStorage.getItem(KEY);
-    if (v && (FILTERS as string[]).includes(v)) return v as (typeof FILTERS)[number];
-  } catch { /* storage unavailable */ }
-  return "Running";
-}
 
 export default function Dashboard({ open, goSettings }: { open: (id: number) => void; goSettings: () => void }) {
   const [items, setItems] = useState<Activity[] | null>(null);
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]>(savedFilter);
+  const [filter, setFilter] = useState<(typeof FILTERS)[number]>("Running");
   const [error, setError] = useState("");
 
   const loadActivities = useCallback(() => {
@@ -27,6 +19,12 @@ export default function Dashboard({ open, goSettings }: { open: (id: number) => 
       .catch((e) => setError(e.message));
   }, []);
   useEffect(loadActivities, [loadActivities]);
+  // start on the sport chosen in Settings (clicking a chip only changes the view for now)
+  useEffect(() => {
+    api<{ default_sport: string }>("/preferences")
+      .then((p) => (FILTERS as string[]).includes(p.default_sport) && setFilter(p.default_sport as (typeof FILTERS)[number]))
+      .catch(() => undefined);
+  }, []);
   const sync = useSync(loadActivities);
 
   const view = useMemo(
@@ -87,7 +85,7 @@ export default function Dashboard({ open, goSettings }: { open: (id: number) => 
         <h2 style={{ margin: 0 }}>Last 14 days</h2>
         <div className="chips">
           {FILTERS.map((f) => (
-            <button key={f} className={f === filter ? "active" : ""} onClick={() => { setFilter(f); try { localStorage.setItem(KEY, f); } catch { /* ignore */ } }}>
+            <button key={f} className={f === filter ? "active" : ""} onClick={() => setFilter(f)}>
               {f}
             </button>
           ))}
