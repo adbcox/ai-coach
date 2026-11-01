@@ -6,12 +6,12 @@ is 26219. It is also a valid, unprivileged port below Linux's ephemeral
 range (32768+). Change the *host* side of the port mapping if you need a
 different one; the container always listens on 26219.
 
-> Status: v0.1 skeleton. It has first-run setup, login, saving your Garmin
-> key (encrypted) and a Garmin sync that lists activities. No charts or
-> maps yet (roadmap v0.2). GitHub Actions builds the Docker image on every
-> push to `main` (first build succeeded); the author has not yet run that
-> image. Tests, lint, the frontend build and a live browser run of the app
-> (without Docker) pass.
+> Status: pre-alpha but in daily use. GitHub Actions builds and publishes the
+> image on every push to `main`; the build number shown at the bottom of
+> Settings tells you which one you are running. See the
+> [changelog](../CHANGELOG.md) for what changed between versions. Tests, lint
+> and the frontend build run in CI; the app has been run against a real
+> Garmin account by its author, not by an independent tester.
 
 ## What you need
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ActivityDetail as Detail, api, SamplesData } from "../api";
-import LinkedCharts from "../components/LinkedCharts";
+import LinkedCharts, { HrZone, ZONE_COLORS } from "../components/LinkedCharts";
 import RunMap from "../components/RunMap";
 import { duration, km, kmh, pace, sportGroup } from "../lib/format";
 
@@ -9,7 +9,7 @@ function ZoneBars({ summary }: { summary: Record<string, unknown> }) {
   const total = zones.reduce((a, b) => a + b, 0);
   if (total <= 0) return null;
   // Strava-style zone colours: 1 grey, 2 blue, 3 green, 4 orange, 5 red
-  const colors = ["#8b949e", "#1f6feb", "#2da44e", "#e8590c", "#cf222e"];
+  const colors = ZONE_COLORS;
   return (
     <section className="card wide">
       <h3 style={{ margin: 0 }}>Time in heart-rate zones</h3>
@@ -30,11 +30,16 @@ export default function ActivityDetail({ id, back }: { id: number; back: () => v
   const [detail, setDetail] = useState<Detail | null>(null);
   const [samples, setSamples] = useState<SamplesData | null>(null);
   const [hover, setHover] = useState<number | null>(null);
+  const [zones, setZones] = useState<HrZone[]>([]);
+  const [zoneNote, setZoneNote] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     setDetail(null);
     setSamples(null);
+    api<{ hr_zones: HrZone[]; hr_zone_note: string }>("/preferences")
+      .then((p) => { setZones(p.hr_zones); setZoneNote(p.hr_zone_note); })
+      .catch(() => undefined);
     api<Detail>(`/activities/${id}`).then(setDetail).catch((e) => setError(e.message));
     api<SamplesData>(`/activities/${id}/samples?max_points=1500`).then(setSamples).catch((e) => setError(e.message));
   }, [id]);
@@ -113,9 +118,9 @@ export default function ActivityDetail({ id, back }: { id: number; back: () => v
       )}
       {samples && samples.t.length > 1 && (
         <section className="card wide">
-          <LinkedCharts data={samples} running={running} onHover={onHover} />
+          <LinkedCharts data={samples} running={running} onHover={onHover} zones={zones} />
           <span className="muted">
-            Showing {samples.t.length} of {samples.total_samples} samples. Hover a chart to see that point on the map.
+            Showing {samples.t.length} of {samples.total_samples} samples. Hover a chart to see that point on the map.{zones.length > 0 && ` Heart-rate bands: ${zoneNote} Change max heart rate in Settings.`}
           </span>
         </section>
       )}

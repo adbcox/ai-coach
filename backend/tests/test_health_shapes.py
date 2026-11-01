@@ -101,4 +101,5 @@ def test_recovery_endpoint_parses_real_shapes(tmp_path):
         assert day["hrv"] == 44 and day["hrv_weekly"] == 46 and day["hrv_low"] == 40 and day["hrv_high"] == 58
         assert day["resting_hr"] == 47 and day["bb_max"] == 92 and day["stress_avg"] == 24
         assert day["steps"] == 11000 and day["intensity_min"] == 40  # vigorous counts double
-        assert c.get("/api/health").json()["version"] == "0.2.0"
+        from app import __version__
+        assert c.get("/api/health").json()["version"] == __version__

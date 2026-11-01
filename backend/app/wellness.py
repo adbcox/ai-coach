@@ -277,6 +277,20 @@ class Walker:
         set_state(self.conn, state_key, "1")
 
 
+def sync_snapshots(conn, client: GarminClient, settings: Settings, notes: list[str]) -> None:
+    """Things without a history (current settings such as heart-rate zones), stored raw."""
+    today = date.today().isoformat()
+    try:
+        payload = client.get_json("/biometric-service/heartRateZones/v2")
+    except GarminError as exc:
+        if exc.status != 404:
+            raise
+        notes.append("heart_rate_zones: not available (404)")
+        return
+    _save(conn, "heart_rate_zones", today, today, payload)
+    conn.commit()
+
+
 def sync_wellness(conn, client: GarminClient, settings: Settings, *, full: bool,
                   progress: Progress, floor: date, lookback: int) -> list[str]:
     """Returns human-readable notes (kinds that were unavailable, etc.)."""
@@ -287,4 +301,5 @@ def sync_wellness(conn, client: GarminClient, settings: Settings, *, full: bool,
         walker.range_kind(rk, floor, full, lookback)
     for dk in DAY_KINDS:
         walker.day_kind(dk, floor, full, lookback)
+    sync_snapshots(conn, client, settings, walker.notes)
     return walker.notes

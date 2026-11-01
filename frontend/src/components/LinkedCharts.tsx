@@ -3,10 +3,16 @@ import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import { SamplesData } from "../api";
 
+export interface HrZone { zone: number; low: number; high: number }
+
+// Strava-style zone colours: 1 grey, 2 blue, 3 green, 4 orange, 5 red
+export const ZONE_COLORS = ["#8b949e", "#1f6feb", "#2da44e", "#e8590c", "#cf222e"];
+
 interface Props {
   data: SamplesData;
   running: boolean;
   onHover: (index: number | null) => void;
+  zones?: HrZone[];
 }
 
 function smooth(values: (number | null)[], window: number): (number | null)[] {
@@ -23,7 +29,7 @@ function smooth(values: (number | null)[], window: number): (number | null)[] {
 
 const has = (a: (number | null)[]) => a.some((v) => v != null && v !== 0);
 
-export default function LinkedCharts({ data, running, onHover }: Props) {
+export default function LinkedCharts({ data, running, onHover, zones = [] }: Props) {
   const host = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,7 +41,7 @@ export default function LinkedCharts({ data, running, onHover }: Props) {
     const xLabel = useDist ? "km" : "min";
     const speed = smooth(data.speed, 7);
 
-    interface Spec { title: string; values: (number | null)[]; stroke: string; invert?: boolean; fmt?: (v: number) => string }
+    interface Spec { title: string; values: (number | null)[]; stroke: string; invert?: boolean; bands?: boolean; fmt?: (v: number) => string }
     const specs: Spec[] = [];
     if (has(data.speed)) {
       if (running) {
@@ -48,7 +54,7 @@ export default function LinkedCharts({ data, running, onHover }: Props) {
         specs.push({ title: "Speed (km/h)", values: speed.map((s) => (s == null ? null : s * 3.6)), stroke: "#1f6feb" });
       }
     }
-    if (has(data.hr)) specs.push({ title: "Heart rate (bpm)", values: smooth(data.hr, 5), stroke: "#cf222e" });
+    if (has(data.hr)) specs.push({ title: "Heart rate (bpm)", values: smooth(data.hr, 5), stroke: "#cf222e", bands: zones.length > 0 });
     if (has(data.alt)) specs.push({ title: "Elevation (m)", values: data.alt, stroke: "#6e7781" });
     if (has(data.power)) specs.push({ title: "Power (W)", values: smooth(data.power, 7), stroke: "#8250df" });
     if (has(data.cadence)) specs.push({ title: "Cadence", values: smooth(data.cadence, 7), stroke: "#2da44e" });
@@ -66,6 +72,18 @@ export default function LinkedCharts({ data, running, onHover }: Props) {
       wrap.appendChild(label);
       const target = document.createElement("div");
       wrap.appendChild(target);
+      if (spec.bands) {
+        const legend = document.createElement("div");
+        legend.className = "zlegend";
+        zones.forEach((z, i) => {
+          const chip = document.createElement("span");
+          chip.className = "zchip";
+          chip.style.background = ZONE_COLORS[i];
+          chip.textContent = `Z${z.zone} ${z.low}\u2013${z.high}`;
+          legend.appendChild(chip);
+        });
+        wrap.appendChild(legend);
+      }
       const opts: uPlot.Options = {
         width,
         height: 140,
@@ -81,6 +99,23 @@ export default function LinkedCharts({ data, running, onHover }: Props) {
         ],
         series: [{}, { stroke: spec.stroke, width: 2, spanGaps: true, points: { show: false } }],
         hooks: {
+          drawClear: spec.bands
+            ? [
+                (u) => {
+                  const { ctx, bbox } = u;
+                  const yMin = u.scales.y.min ?? 0, yMax = u.scales.y.max ?? 0;
+                  ctx.save();
+                  zones.forEach((z, i) => {
+                    const lo = Math.max(z.low, yMin), hi = Math.min(z.high, yMax);
+                    if (hi <= lo) return;
+                    const top = u.valToPos(hi, "y", true), bottom = u.valToPos(lo, "y", true);
+                    ctx.fillStyle = ZONE_COLORS[i] + "30";
+                    ctx.fillRect(bbox.left, top, bbox.width, bottom - top);
+                  });
+                  ctx.restore();
+                },
+              ]
+            : [],
           setCursor: [
             (u) => {
               // linked charts also report "no point"; only a real index moves the map marker
@@ -105,7 +140,7 @@ export default function LinkedCharts({ data, running, onHover }: Props) {
       root.removeEventListener("mouseleave", leave);
       plots.forEach((p) => p.destroy());
     };
-  }, [data, running, onHover]);
+  }, [data, running, onHover, zones]);
 
   return <div ref={host} className="plots" />;
 }

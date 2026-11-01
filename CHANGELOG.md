@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.1
+
+New
+- **Heart-rate zone bands** behind the heart-rate line on run charts, in Strava's
+  colours (Z1 grey, Z2 blue, Z3 green, Z4 orange, Z5 red), with a zone legend.
+  Zones are estimated from your max heart rate at 50/60/70/80/90% (Garmin's
+  defaults). Set your max heart rate in Settings, Preferences; blank uses the
+  highest value in your activities. Garmin's own zone settings are also being
+  collected for a later, exact version.
+
+Fixed
+- **Rolling 7-day longest run** no longer drops off a cliff when you have not
+  run yet today: until there is a run today, today's point looks back 8 days.
+- Data-shapes export no longer hides harmless running-dynamics fields by
+  accident (ground contact time, vertical oscillation).
+
+Docs
+- README, install guide and roadmap brought up to date with what is built.
+
 ## 0.2.0
 
 New

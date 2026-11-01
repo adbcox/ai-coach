@@ -55,7 +55,8 @@ SPORT_GROUPS = ["All", "Running", "Cycling", "Hiking", "Other"]
 
 
 class Preferences(BaseModel):
-    default_sport: str
+    default_sport: str | None = None
+    max_hr: int | None = Field(default=None, ge=100, le=230)  # null clears (use automatic)
 
 
 class BackupRequest(BaseModel):
@@ -358,10 +359,25 @@ def create_app(
             backups.lock.release()
             manager.release_exclusive()
 
+    ZONE_EDGES = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0]  # Garmin's default zones, % of max heart rate
+
     def read_prefs(conn) -> dict:
-        row = conn.execute("SELECT value FROM sync_state WHERE key='pref_default_sport'").fetchone()
-        sport = row["value"] if row and row["value"] in SPORT_GROUPS else "Running"
-        return {"default_sport": sport, "sport_options": SPORT_GROUPS}
+        def pref(key: str) -> str | None:
+            row = conn.execute("SELECT value FROM sync_state WHERE key=?", (key,)).fetchone()
+            return row["value"] if row else None
+
+        sport = pref("pref_default_sport")
+        sport = sport if sport in SPORT_GROUPS else "Running"
+        custom = pref("pref_max_hr")
+        auto = conn.execute("SELECT MAX(max_hr) AS m FROM activities WHERE max_hr BETWEEN 100 AND 230"
+                            ).fetchone()["m"]
+        max_hr = int(custom) if custom else (int(auto) if auto else None)
+        zones = ([{"zone": i + 1, "low": round(max_hr * ZONE_EDGES[i]),
+                   "high": round(max_hr * ZONE_EDGES[i + 1])} for i in range(5)] if max_hr else [])
+        return {"default_sport": sport, "sport_options": SPORT_GROUPS, "max_hr": max_hr,
+                "max_hr_source": "custom" if custom else ("auto" if auto else None),
+                "max_hr_auto": int(auto) if auto else None, "hr_zones": zones,
+                "hr_zone_note": "Estimated from max heart rate at 50/60/70/80/90% (Garmin's default zones)."}
 
     @app.get("/api/preferences")
     def prefs_get(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
@@ -369,10 +385,18 @@ def create_app(
 
     @app.put("/api/preferences")
     def prefs_put(body: Preferences, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
-        if body.default_sport not in SPORT_GROUPS:
-            raise HTTPException(400, f"default_sport must be one of {', '.join(SPORT_GROUPS)}.")
-        conn.execute("INSERT INTO sync_state (key, value) VALUES ('pref_default_sport', ?) "
-                     "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (body.default_sport,))
+        fields = body.model_fields_set
+        if "default_sport" in fields and body.default_sport is not None:
+            if body.default_sport not in SPORT_GROUPS:
+                raise HTTPException(400, f"default_sport must be one of {', '.join(SPORT_GROUPS)}.")
+            conn.execute("INSERT INTO sync_state (key, value) VALUES ('pref_default_sport', ?) "
+                         "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (body.default_sport,))
+        if "max_hr" in fields:
+            if body.max_hr is None:
+                conn.execute("DELETE FROM sync_state WHERE key='pref_max_hr'")
+            else:
+                conn.execute("INSERT INTO sync_state (key, value) VALUES ('pref_max_hr', ?) "
+                             "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(body.max_hr),))
         conn.commit()
         return read_prefs(conn)
 

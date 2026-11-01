@@ -24,11 +24,13 @@ SAMPLE_LIMIT = 200          # payloads inspected per data type
 MAX_ENUM_VALUES = 12
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _DATETIME = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")
-_COORD_KEYS = re.compile(r"lat|lon|long|position|gps|polyline|location|address|name|email", re.I)
+_COORD_KEYS = re.compile(
+    r"latitude|longitude|(^|[_.])(lat|lon|lng)([_.]|$)|position|gps|polyline|location|address|name|email",
+    re.I)
 # Numeric fields whose min/max would identify the account, the device, the timeline or the
 # body (IDs, timestamps, weight and body composition). Types and counts are still shown.
 _PRIVATE_NUM_KEYS = re.compile(
-    r"(^|[a-z0-9_])(id|pk|uuid)$|userprofile|owner|device|samplepk|timestamp|time(gmt|local)?$|"
+    r"(^|[a-z0-9_])(id|pk|uuid)$|userprofile|owner|device|samplepk|timestamp|(gmt|local)$|"
     r"date|^from$|^until$|created|begin|weight|bmi|bodyfat|bodywater|bonemass|musclemass|"
     r"visceral|metabolicage|height", re.I)
 _BIG = 1_000_000_000  # anything this large is an epoch time or an id, never a training value

@@ -92,7 +92,12 @@ export default function RollingCharts({ activities, noun }: { activities: Activi
     for (let i = WINDOW - 1; i < days.length; i++) {
       const win = days.slice(i - WINDOW + 1, i + 1);
       avg.push({ day: days[i], value: win.reduce((n, d) => n + total.get(d)!, 0) });
-      longest.push({ day: days[i], value: Math.max(...win.map((d) => best.get(d)!)) });
+      // Today is unfinished: until there is an activity today, look back 8 days (today plus the
+      // 7 before it) so a long run exactly a week ago does not drop out of the line mid-week.
+      const isToday = i === days.length - 1;
+      const reach = isToday && best.get(days[i])! === 0 ? WINDOW : WINDOW - 1;
+      const wide = days.slice(Math.max(0, i - reach), i + 1);
+      longest.push({ day: days[i], value: Math.max(...wide.map((d) => best.get(d)!)) });
     }
     return { avg, longest };
   }, [activities]);
@@ -111,7 +116,7 @@ export default function RollingCharts({ activities, noun }: { activities: Activi
         unit="km"
         points={longest}
         color="var(--ride)"
-        sub={`Each point is the longest single ${noun} in the 7 days ending that day.`}
+        sub={`Each point is the longest single ${noun} in the 7 days ending that day. Until you have a ${noun} today, today looks back 8 days so last week\u2019s long ${noun} does not vanish early.`}
       />
     </div>
   );

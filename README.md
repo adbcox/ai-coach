@@ -4,7 +4,7 @@
 
 Self-hosted, AI-optional endurance training dashboard: Garmin sync, run analysis and a literature ingest area, in a single Docker container.
 
-> **Status: pre-alpha.** First-run setup, login, encrypted Garmin key, full-history Garmin sync, a 14-day dashboard and a run detail page (map, linked charts, GPX download) work; recovery views, literature ingest and agent access are next. See the [roadmap](docs/roadmap.md) and [install guide](docs/install.md). Default port: **26219**.
+> **Status: pre-alpha, but usable.** Garmin sync (full history), dashboard, run detail with map and charts, recovery page, backups (including to a network share) and a first-run setup all work. Literature ingest and agent (AI) access are next. See the [roadmap](docs/roadmap.md), [changelog](CHANGELOG.md) and [install guide](docs/install.md). Default port: **26219**.
 
 ## Disclaimer: vibe-coded, use at your own risk
 
@@ -21,18 +21,26 @@ This project was largely written with AI assistance ("vibe-coded") and has not h
 - **Public code, private data.** Your Garmin key, health data and ingested files stay on the server running your container, on a mounted volume. They are never in this repo (see `.gitignore`).
 - **Your own data only.** Garmin's Personal API is licensed for personal use with your own data. Each user runs their own instance with their own key.
 
-## Planned features
+## What it does today
 
-1. Garmin data sync (activities incl. per-second samples, sleep, HRV, Body Battery, stress)
-2. Dashboard: recent mileage, single-run detail with map
-3. Ingest area for studies, videos and articles, kept in three forms: actionable summary, full-text Markdown, original source
-4. Recovery views
-5. Agent connectivity (REST + MCP)
+- **Garmin sync**: your whole activity history (with per-second data) plus daily health data (sleep, HRV, Body Battery, stress, resting heart rate, steps, ...), kept up to date automatically (interval set in Settings; quick sync button on the dashboard).
+- **Dashboard**: last 14 days of distance by sport, rolling weekly mileage (km per week) and rolling 7-day longest run, over the last 4 weeks. Opens on the sport you choose in Settings (Running by default).
+- **Activities and run detail**: filterable list; per-run map, pace/speed, heart rate (with zone bands), elevation, power and cadence charts linked to the map, heart-rate zone time, running dynamics, GPX download.
+- **Recovery**: sleep score and duration, HRV against your balanced range, resting heart rate, Body Battery and stress, 30 days to 1 year.
+- **Backups**: one-click portable backup and restore (move to a new machine), plus scheduled uploads to an SMB network share. Your Garmin key is encrypted at rest and never included in scheduled backups.
+- **Privacy tools**: a data-shapes export that describes the structure of your data (no names, places, ids, dates or body measurements) so problems can be debugged without sharing your data.
+
+## Coming next
+
+1. Literature ingest: upload studies, videos and articles; kept as an actionable summary, full-text Markdown and the original source
+2. Heart-rate zones from your Garmin settings, a first training-load view, "rebuild from stored files"
+3. More data sources (Strava, COROS) with de-duplication
+4. Agent connectivity (REST + MCP) so any AI can read your data, then mobile layout and an installable web app
 
 ## Docs
 
 - [Install guide](docs/install.md) (Docker, Unraid, first run)
-- [Roadmap](docs/roadmap.md)
+- [Roadmap](docs/roadmap.md) and [changelog](CHANGELOG.md)
 - [Garmin Personal API](docs/garmin.md): key setup, token exchange, data coverage, terms notes
 - [Ingest area](docs/ingest.md): tiers, retrieval order, tooling, templates
 

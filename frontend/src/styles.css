@@ -66,3 +66,5 @@ select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; b
 .zonerow { display: grid; grid-template-columns: 60px 1fr 140px; gap: 10px; align-items: center; }
 .zonebar { background: var(--line); border-radius: 4px; height: 12px; overflow: hidden; }
 .zonebar i { display: block; height: 100%; }
+.zlegend { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 6px 4px; }
+.zchip { color: #fff; font-size: 12px; padding: 1px 8px; border-radius: 10px; }

@@ -10,11 +10,21 @@ function Preferences() {
   const [sport, setSport] = useState("");
   const [options, setOptions] = useState<string[]>([]);
   const [saved, setSaved] = useState(false);
-  useEffect(() => {
-    api<{ default_sport: string; sport_options: string[] }>("/preferences")
-      .then((p) => { setSport(p.default_sport); setOptions(p.sport_options); })
-      .catch(() => undefined);
-  }, []);
+  const [maxHr, setMaxHr] = useState("");
+  const [auto, setAuto] = useState<number | null>(null);
+  const [zones, setZones] = useState<{ zone: number; low: number; high: number }[]>([]);
+  const [hrError, setHrError] = useState("");
+  type PrefData = { default_sport: string; sport_options: string[]; max_hr: number | null; max_hr_source: string | null; max_hr_auto: number | null; hr_zones: { zone: number; low: number; high: number }[] };
+  const apply = (p: PrefData) => {
+    setSport(p.default_sport); setOptions(p.sport_options); setAuto(p.max_hr_auto);
+    setMaxHr(p.max_hr_source === "custom" && p.max_hr ? String(p.max_hr) : ""); setZones(p.hr_zones);
+  };
+  useEffect(() => { api<PrefData>("/preferences").then(apply).catch(() => undefined); }, []);
+  async function saveMaxHr() {
+    setHrError("");
+    try { apply(await api<PrefData>("/preferences", "PUT", { max_hr: maxHr.trim() ? Number(maxHr) : null })); }
+    catch (e) { setHrError((e as Error).message === "Please check the form fields." ? "Enter a value between 100 and 230, or leave blank for automatic." : (e as Error).message); }
+  }
   async function change(value: string) {
     setSport(value);
     setSaved(false);
@@ -37,6 +47,18 @@ function Preferences() {
         Sets which sport the dashboard shows when you open it (mileage, rolling charts, latest activities).
         You can still switch sport on the dashboard itself. {saved && <strong>Saved.</strong>}
       </span>
+      <label>
+        Max heart rate (bpm)
+        <input type="number" min={100} max={230} value={maxHr} onChange={(e) => setMaxHr(e.target.value)}
+               onBlur={saveMaxHr} placeholder={auto ? `automatic (${auto})` : "automatic"} style={{ maxWidth: 200 }} />
+      </label>
+      <span className="muted">
+        Used to draw heart-rate zones behind the heart-rate chart (Strava colours: grey, blue, green, orange, red).
+        Blank = the highest heart rate recorded in your activities{auto ? ` (${auto} bpm)` : ""}.
+        {zones.length > 0 && ` Zones: ${zones.map((z) => `Z${z.zone} ${z.low}\u2013${z.high}`).join(", ")}.`} These are
+        estimates at 50/60/70/80/90% of max heart rate; your Garmin watch may use different zone boundaries.
+      </span>
+      {hrError && <span className="error">{hrError}</span>}
     </section>
   );
 }
