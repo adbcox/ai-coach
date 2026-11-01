@@ -47,6 +47,20 @@ curl -X POST 'https://personal.connectapi.garmin.com/personalapitoken-service/pe
   numbers; derive equivalents from activities + HRV/sleep, or fall back
   to `python-garminconnect` for just those metrics if they prove needed.
 
+## FIT file download (confirmed 2026-11-01)
+
+The personal key can download original activity files: one recent cycling
+activity returned HTTP 200 with a ZIP (~105 KB) holding one `.fit` file
+(~260 KB) with a valid FIT header signature. Uses the download path from
+Garmin's own client,
+[garmin/connect-personal-api-python](https://github.com/garmin/connect-personal-api-python).
+
+Limits of the test: one activity, cycling only; only the header was
+checked, the contents were not parsed; older activities and runs are
+untested. Earlier community reports say Garmin may strip some
+undocumented fields (e.g. VO2max, recovery time) from API-delivered FIT
+files; unverified.
+
 ## Terms — unconfirmed, read before relying on this
 
 - Garmin frames the Personal tier as personal use of your own data; the

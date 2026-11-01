@@ -14,7 +14,7 @@ The whole app works with no AI until v0.5.
 
 ## Open items
 
-- Confirm FIT file download works with a Garmin personal key (per-second data depends on it).
+- ~~Confirm FIT file download works with a Garmin personal key~~: confirmed for one cycling activity (see [Garmin docs](garmin.md)); still to test older activities and runs.
 - Pick the stack (Python assumed: the chosen ingest tools are Python) and the embedded database (SQLite default; DuckDB/Parquet if analysis outgrows it).
-- Check dependency licenses (Docling, MarkItDown, Trafilatura, Garmin client libraries) against this repo's MIT license before the first release.
-- Read Garmin's actual Personal API terms (shown at key creation) regarding AI use.
+- ~~Check dependency licenses~~: done, see [licenses](licenses.md). No change to MIT needed.
+- Read Garmin's Personal API Terms and Conditions (shown only when creating a key; the public docs page covers setup steps, not the terms text) regarding AI use. Still unread.
