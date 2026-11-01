@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.3
+
+Added
+- **About you** in Settings: sex, year of birth (shows your age) and weight. Weight is pulled from the Garmin weight
+  data the app already syncs (latest value and its date shown); type a value to override it, clear the box to go back
+  to Garmin's. Nothing uses these yet except showing them; they are the inputs the upcoming formulas will need, and each
+  formula will say when it uses one. A `/api/weight` history endpoint is ready for a trend chart.
+- Garmin's weight layout is read defensively (it is not documented and has not been checked against a real account's
+  data), and Settings says plainly when no weight is found.
+
 ## 0.4.2
 
 Changed

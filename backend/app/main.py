@@ -32,6 +32,9 @@ from . import (
     smb,
     vo2max,
 )
+from . import (
+    body as bodymod,
+)
 from .config import Settings
 from .crypto import SecretBox
 from .garmin.client import GarminError
@@ -73,6 +76,8 @@ class Preferences(BaseModel):
     max_hr: int | None = Field(default=None, ge=100, le=230)  # null clears (use automatic)
     birth_year: int | None = Field(default=None, ge=1920, le=2020)
     watch_vo2max: float | None = Field(default=None, ge=15, le=90)
+    sex: str | None = None            # "female" | "male"; null clears
+    weight_kg: float | None = Field(default=None, ge=25, le=300)  # null clears (use Garmin's)
 
 
 class BackupRequest(BaseModel):
@@ -398,31 +403,44 @@ def create_app(
                 "max_hr_auto": int(auto) if auto else None, "hr_zones": zones,
                 "birth_year": int(pref("pref_birth_year")) if pref("pref_birth_year") else None,
                 "watch_vo2max": float(pref("pref_watch_vo2max")) if pref("pref_watch_vo2max") else None,
+                **profile_fields(conn, pref),
                 "hr_zone_note": "Estimated from max heart rate using a common five-zone convention (50/60/70/80/90%). Your "
                                 "Garmin's own boundaries are set from your profile and may differ.",
                 "hr_zone_citation": "garmin_zones"}
+
+    def profile_fields(conn, pref) -> dict:
+        garmin = bodymod.latest_garmin_weight(conn)
+        custom = float(pref("pref_weight_kg")) if pref("pref_weight_kg") else None
+        sex = pref("pref_sex")
+        year = int(pref("pref_birth_year")) if pref("pref_birth_year") else None
+        return {"sex": sex if sex in ("female", "male") else None,
+                "age": bodymod.age_from_birth_year(year),
+                "weight_kg": custom if custom else (garmin["kg"] if garmin else None),
+                "weight_source": "custom" if custom else ("garmin" if garmin else None),
+                "weight_garmin_kg": garmin["kg"] if garmin else None,
+                "weight_garmin_date": garmin["date"] if garmin else None}
 
     @app.get("/api/preferences")
     def prefs_get(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
         return read_prefs(conn)
 
     @app.put("/api/preferences")
-    def prefs_put(body: Preferences, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
-        fields = body.model_fields_set
-        if "default_sport" in fields and body.default_sport is not None:
-            if body.default_sport not in SPORT_GROUPS:
+    def prefs_put(body_: Preferences, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        fields = body_.model_fields_set
+        if "default_sport" in fields and body_.default_sport is not None:
+            if body_.default_sport not in SPORT_GROUPS:
                 raise HTTPException(400, f"default_sport must be one of {', '.join(SPORT_GROUPS)}.")
             conn.execute("INSERT INTO sync_state (key, value) VALUES ('pref_default_sport', ?) "
-                         "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (body.default_sport,))
+                         "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (body_.default_sport,))
         if "max_hr" in fields:
-            if body.max_hr is None:
+            if body_.max_hr is None:
                 conn.execute("DELETE FROM sync_state WHERE key='pref_max_hr'")
             else:
                 conn.execute("INSERT INTO sync_state (key, value) VALUES ('pref_max_hr', ?) "
-                             "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(body.max_hr),))
+                             "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(body_.max_hr),))
         for field, key in (("birth_year", "pref_birth_year"), ("watch_vo2max", "pref_watch_vo2max")):
             if field in fields:
-                value = getattr(body, field)
+                value = getattr(body_, field)
                 if value is None:
                     conn.execute("DELETE FROM sync_state WHERE key=?", (key,))
                 else:
@@ -431,8 +449,26 @@ def create_app(
                 if field == "watch_vo2max" and value is not None:
                     conn.execute("INSERT INTO sync_state (key, value) VALUES ('pref_watch_vo2max_date', ?) "
                                  "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (_now()[:10],))
+        if "sex" in fields:
+            if body_.sex is None:
+                conn.execute("DELETE FROM sync_state WHERE key='pref_sex'")
+            elif body_.sex in ("female", "male"):
+                conn.execute("INSERT INTO sync_state (key, value) VALUES ('pref_sex', ?) "
+                             "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (body_.sex,))
+            else:
+                raise HTTPException(400, "sex must be female or male (the value physiology formulas use), or blank.")
+        if "weight_kg" in fields:
+            if body_.weight_kg is None:
+                conn.execute("DELETE FROM sync_state WHERE key='pref_weight_kg'")
+            else:
+                conn.execute("INSERT INTO sync_state (key, value) VALUES ('pref_weight_kg', ?) "
+                             "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(body_.weight_kg),))
         conn.commit()
         return read_prefs(conn)
+
+    @app.get("/api/weight")
+    def weight_get(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        return {"history": bodymod.weight_history(conn)[-365:]}
 
     @app.get("/api/references")
     def references_list(_=Depends(current_user)) -> dict:
