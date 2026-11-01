@@ -6,6 +6,8 @@ The whole app works with no AI until v0.5.
 | --- | --- | --- |
 | v0.1 | 0 — Garmin ingest | First-run setup creates the single admin account; a settings page where the admin enters the Garmin API key (never via chat, repo or build; stored only on the server volume); sync via the [Garmin Personal API](garmin.md) into SQLite on the container volume, behind a provider interface so other providers can be added later. Per-second samples via FIT download. Pulls the entire activity history and all daily health data (sleep, HRV, Body Battery, summaries, heart rate, SpO2, steps, hydration, weight) as raw JSON, then keeps both up to date incrementally. Done in the v0.1 skeleton; first live sync verified by the user. |
 | v0.2 | 1 — Dashboard/GUI | Desktop-first. Mileage for the last 14 days; single-run detail view including a GPX/map view with linked charts. Uses the v0.1 admin login. |
+| v0.2.1 | Backup and restore | One-click portable backup (download from the app) and restore into a fresh install on another machine. Contents: a consistent snapshot of the SQLite database (safe while a sync runs), the original activity files, and the ingest folders. Garmin key and master key are **not** included by default (re-enter the key on the new machine), or can be included only inside a passphrase-encrypted archive. Restore checks the app version and schema before overwriting anything. |
+| v0.2.2 | Scheduled backups to an SMB share (substep of backup) | Automatic backups at a set interval (e.g. nightly) to an SMB/CIFS share such as a NAS. Settings page: share address, folder, credentials (stored encrypted like the Garmin key), interval, retention (keep the last N), "back up now" and last-result status; failures surface in the app. Done from inside the container with an SMB client library, so no host mount or privileged container is needed. |
 | v0.3 | 2 — Literature ingest | Upload a file or paste a link; off-the-shelf OCR/extraction tools convert it into the [three ingest tiers](ingest.md). No LLM needed. |
 | v0.4 | 3 — Recovery | Sleep, HRV, Body Battery and stress in the dashboard. |
 | v0.5 | 4 — AI integration | REST API + MCP server so any agent (local model, Claude, ChatGPT, Codex, ...) can connect; actionable distillation of ingested sources; plan-adjustment assistant. |
@@ -25,6 +27,13 @@ The whole app works with no AI until v0.5.
 - Garmin API key is encrypted at rest with a master key generated on first run and stored separately from the database (owner-only permissions); an optional environment variable or Docker secret overrides it (use this on a cloud host).
 - MVP targets desktop. Single admin user with built-in login (safe if later exposed publicly).
 - Mobile site, then installable web app, then multi-user, in that order.
+
+## Backup design notes (for v0.2.1 / v0.2.2)
+
+- Use SQLite's online backup, not a file copy, so a snapshot is consistent while syncing.
+- The activity ZIPs are the original Garmin files, so they are also the safest long-term copy; they can be incrementally synced rather than re-archived each time.
+- The master key stays out of ordinary backups (a backup containing both the database and its key defeats the encryption). Portable option: passphrase-encrypted archive.
+- SMB credentials get the same encryption-at-rest as the Garmin key. Verify the share is reachable and writable when saving settings, and report backup failures in the UI.
 
 ## Open items
 
