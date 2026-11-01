@@ -1,3 +1,4 @@
+import VersionBadge from "../components/VersionBadge";
 import { FormEvent, useState } from "react";
 import { api } from "../api";
 import Restore from "../components/Restore";
@@ -41,6 +42,7 @@ export default function Auth({ mode, onDone }: { mode: "setup" | "login"; onDone
     <main className="center">
       <form className="card" onSubmit={submit}>
         <h1>{setup ? "Create the admin account" : "Sign in"}</h1>
+        <p className="muted" style={{ margin: 0 }}>Endurance Coach <VersionBadge /></p>
         {setup && <p className="muted">First run: this account controls the whole instance.</p>}
         <label>
           Username

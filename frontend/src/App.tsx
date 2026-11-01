@@ -1,3 +1,4 @@
+import VersionBadge from "./components/VersionBadge";
 import { setUnits, Units, useUnits } from "./lib/units";
 import { useCallback, useEffect, useState } from "react";
 import { api, SessionInfo } from "./api";
@@ -68,7 +69,7 @@ export default function App() {
   return (
     <div className="shell">
       <header>
-        <a className="brand" href="#/"><img src="/logo.svg" alt="" width="26" height="26" /><strong>Endurance Coach</strong></a>
+        <a className="brand" href="#/"><img src="/logo.svg" alt="" width="26" height="26" /><strong>Endurance Coach</strong><VersionBadge /></a>
         <nav>
           {(["dashboard", "activities", "predict", "recovery", "settings"] as const).map((t) => (
             <button key={t} className={tab === t ? "active" : ""} onClick={() => go(t === "dashboard" ? "" : t)}>

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.7
+
+Added
+- **Version badge** (e.g. v0.4.7) next to the name in the header and on the sign-in page, so you can see which build you are on. Hover or long-press it for the build id.
+
 ## 0.4.6
 
 Changed
