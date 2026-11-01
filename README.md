@@ -4,6 +4,14 @@ Self-hosted, AI-optional endurance training dashboard: Garmin sync, run analysis
 
 > **Status: pre-alpha, planning.** Nothing is built yet. See the [roadmap](docs/roadmap.md).
 
+## Disclaimer: vibe-coded, use at your own risk
+
+This project was largely written with AI assistance ("vibe-coded") and has not had a professional security or safety review. It is provided **as is**, with no warranty (see the [MIT license](LICENSE)).
+
+- **Digital risk:** it handles your Garmin API key and personal health data. Bugs, misconfiguration or exposing it to the internet could leak or lose that data. Keep it on a trusted network or behind a VPN/authenticating proxy, use HTTPS if exposed, back up your data volume, and revoke your Garmin key if in doubt.
+- **Physical risk:** training metrics, plans or AI-generated suggestions may be wrong. This is not medical advice and is not a substitute for a qualified coach or doctor. Do not push through pain, illness or injury because a dashboard said so. You are responsible for your own training decisions.
+- **Garmin terms:** use only your own data with your own key, and read Garmin's terms yourself.
+
 ## Principles
 
 - **Self-contained, AI-optional.** One Docker container. Sync, storage, dashboard and ingest all work with no AI.
