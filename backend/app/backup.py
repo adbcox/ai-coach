@@ -298,3 +298,138 @@ def restore_backup(settings: Settings, box: SecretBox, archive: Path, *,
                 "previous_database_kept_as": kept.name if kept else None}
     finally:
         shutil.rmtree(stage, ignore_errors=True)
+
+
+# ---------------------------------------------------------------- share target + manager
+BACKUP_INTERVALS = [0, 360, 720, 1440, 10080]  # minutes; 0 = manual uploads only
+
+
+def load_target(conn, box: SecretBox):
+    """Returns (SmbTarget, row) or None."""
+    from .smb import SmbTarget
+
+    row = conn.execute("SELECT * FROM backup_target WHERE id=1").fetchone()
+    if row is None:
+        return None
+    try:
+        password = box.decrypt(row["password_enc"])
+    except ValueError:
+        return None
+    return SmbTarget(host=row["host"], share=row["share"], folder=row["folder"] or "",
+                     username=row["username"], password=password, domain=row["domain"],
+                     port=row["port"]), row
+
+
+def target_status(conn, box: SecretBox) -> dict[str, Any]:
+    row = conn.execute("SELECT * FROM backup_target WHERE id=1").fetchone()
+    out: dict[str, Any] = {"configured": row is not None, "interval_options": BACKUP_INTERVALS}
+    if row is None:
+        return out
+    nxt = None
+    if row["interval_minutes"] > 0:
+        base = datetime.fromisoformat(row["last_run_at"]) if row["last_run_at"] else datetime.now(UTC)
+        from datetime import timedelta
+        nxt = (base + timedelta(minutes=row["interval_minutes"])).isoformat(timespec="seconds")
+    out.update({
+        "host": row["host"], "port": row["port"], "share": row["share"], "folder": row["folder"],
+        "username": row["username"], "domain": row["domain"],
+        "interval_minutes": row["interval_minutes"], "keep": row["keep"],
+        "last_run_at": row["last_run_at"], "last_status": row["last_status"],
+        "last_message": row["last_message"], "next_run_at": nxt,
+    })
+    return out
+
+
+def save_target(conn, box: SecretBox, *, host: str, port: int, share: str, folder: str,
+                username: str, domain: str | None, password: str, interval_minutes: int,
+                keep: int) -> None:
+    conn.execute(
+        "INSERT INTO backup_target (id, host, port, share, folder, username, domain, password_enc, "
+        "interval_minutes, keep) VALUES (1,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET "
+        "host=excluded.host, port=excluded.port, share=excluded.share, folder=excluded.folder, "
+        "username=excluded.username, domain=excluded.domain, password_enc=excluded.password_enc, "
+        "interval_minutes=excluded.interval_minutes, keep=excluded.keep",
+        (host, port, share, folder, username, domain, box.encrypt(password), interval_minutes, keep))
+    conn.commit()
+
+
+def _record_run(conn, ok: bool, message: str) -> None:
+    conn.execute("UPDATE backup_target SET last_run_at=?, last_status=?, last_message=? WHERE id=1",
+                 (datetime.now(UTC).isoformat(timespec="seconds"), "ok" if ok else "error", message))
+    conn.commit()
+
+
+class BackupManager:
+    """Creates backups (local, then to the share if one is set) and runs the schedule."""
+
+    def __init__(self, settings: Settings, box: SecretBox) -> None:
+        import threading
+        self.settings, self.box = settings, box
+        self.lock = threading.Lock()
+        self.error: str | None = None
+        self.last_ok: str | None = None
+        self._threading = threading
+
+    def start_background(self, passphrase: str | None = None) -> bool:
+        if not self.lock.acquire(blocking=False):
+            return False
+        self._threading.Thread(target=self._guarded, args=(passphrase,), daemon=True,
+                               name="backup").start()
+        return True
+
+    def _guarded(self, passphrase: str | None) -> None:
+        try:
+            self.run(passphrase)
+        finally:
+            self.lock.release()
+
+    def run(self, passphrase: str | None = None) -> Path | None:
+        """Caller must hold self.lock. Never raises; problems go to self.error."""
+        from . import smb
+        try:
+            path = create_backup(self.settings, self.box, passphrase=passphrase or None)
+        except Exception as exc:
+            self.error = f"Backup failed: {type(exc).__name__}: {exc}"
+            return None
+        self.error = None
+        self.last_ok = datetime.now(UTC).isoformat(timespec="seconds")
+        conn = db.connect(self.settings.db_path)
+        try:
+            loaded = load_target(conn, self.box)
+            if loaded is None:
+                return path
+            target, row = loaded
+            try:
+                size = smb.upload(target, path)
+                removed = smb.prune_remote(target, row["keep"])
+                _record_run(conn, True, f"Uploaded {size / 1e6:.1f} MB"
+                            + (f"; removed {removed} old" if removed else ""))
+            except smb.SmbError as exc:
+                _record_run(conn, False, str(exc))
+                self.error = f"Saved locally, but the share upload failed: {exc}"
+        finally:
+            conn.close()
+        return path
+
+    def maybe_run_scheduled(self) -> bool:
+        conn = db.connect(self.settings.db_path)
+        try:
+            row = conn.execute("SELECT interval_minutes, last_run_at FROM backup_target WHERE id=1"
+                               ).fetchone()
+        finally:
+            conn.close()
+        if row is None or row["interval_minutes"] <= 0:
+            return False
+        from datetime import timedelta
+        if row["last_run_at"]:
+            due = datetime.now(UTC) >= datetime.fromisoformat(row["last_run_at"]) + timedelta(
+                minutes=row["interval_minutes"])
+            if not due:
+                return False
+        if not self.lock.acquire(blocking=False):
+            return False
+        try:
+            self.run(None)  # scheduled backups never contain the Garmin key
+        finally:
+            self.lock.release()
+        return True

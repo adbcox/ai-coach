@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json as _json
-import threading
 import time
 import uuid
 from collections import defaultdict
@@ -17,7 +16,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import __version__, backup, db, diagnostics, schedule, security
+from . import __version__, backup, db, diagnostics, schedule, security, smb
 from .config import Settings
 from .crypto import SecretBox
 from .garmin.client import GarminError
@@ -37,6 +36,18 @@ class Credentials(BaseModel):
 
 class Schedule(BaseModel):
     interval_minutes: int
+
+
+class SmbConfig(BaseModel):
+    host: str = Field(min_length=1, max_length=253)
+    port: int = Field(default=445, ge=1, le=65535)
+    share: str = Field(min_length=1, max_length=80)
+    folder: str = Field(default="", max_length=200)
+    username: str = Field(min_length=1, max_length=128)
+    domain: str | None = Field(default=None, max_length=128)
+    password: str | None = Field(default=None, max_length=256)
+    interval_minutes: int = 1440
+    keep: int = Field(default=14, ge=1, le=365)
 
 
 class BackupRequest(BaseModel):
@@ -62,8 +73,7 @@ def create_app(
     box = SecretBox.load(settings.secrets_dir, settings.app_secret)
     manager = SyncManager(settings, box, client_factory)
     failures: dict[str, list[float]] = defaultdict(list)
-    backup_lock = threading.Lock()
-    backup_state: dict = {"error": None, "last_ok": None}
+    backups = backup.BackupManager(settings, box)
 
     @contextlib.asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -74,6 +84,7 @@ def create_app(
                     await asyncio.sleep(60)
                     try:
                         await asyncio.to_thread(manager.maybe_run_scheduled)
+                        await asyncio.to_thread(backups.maybe_run_scheduled)
                     except Exception:  # keep the scheduler alive whatever happens
                         pass
             task = asyncio.create_task(loop())
@@ -91,6 +102,7 @@ def create_app(
                   dependencies=[Depends(csrf_guard)], docs_url=None, redoc_url=None)
     app.state.settings = settings
     app.state.sync_manager = manager
+    app.state.backup_manager = backups
 
     def get_conn() -> Iterator:
         conn = db.connect(settings.db_path)
@@ -235,28 +247,45 @@ def create_app(
             raise HTTPException(409, "A sync is already running.")
         return {"started": True}
 
-    def _run_backup(passphrase: str | None) -> None:
-        try:
-            backup.create_backup(settings, box, passphrase=passphrase or None)
-            backup_state["error"] = None
-            backup_state["last_ok"] = _now()
-        except Exception as exc:  # surfaced in the UI
-            backup_state["error"] = f"{type(exc).__name__}: {exc}"
-        finally:
-            backup_lock.release()
-
     @app.get("/api/backups")
-    def backups_list(_=Depends(current_user)) -> dict:
-        return {"items": backup.list_backups(settings), "running": backup_lock.locked(),
-                "error": backup_state["error"], "keep": backup.DEFAULT_KEEP}
+    def backups_list(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        return {"items": backup.list_backups(settings), "running": backups.lock.locked(),
+                "error": backups.error, "keep": backup.DEFAULT_KEEP,
+                "smb": backup.target_status(conn, box)}
 
     @app.post("/api/backups", status_code=202)
     def backups_create(body: BackupRequest, _=Depends(current_user)) -> dict:
-        if not backup_lock.acquire(blocking=False):
+        if not backups.start_background(body.passphrase):
             raise HTTPException(409, "A backup is already running.")
-        threading.Thread(target=_run_backup, args=(body.passphrase,), daemon=True,
-                         name="backup").start()
         return {"started": True}
+
+    @app.put("/api/backups/smb")
+    def backups_smb_put(body: SmbConfig, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        existing = backup.load_target(conn, box)
+        password = body.password or (existing[0].password if existing else "")
+        if not password:
+            raise HTTPException(400, "Password is required.")
+        if body.interval_minutes not in backup.BACKUP_INTERVALS:
+            raise HTTPException(400, "Unsupported interval.")
+        target = smb.SmbTarget(host=body.host.strip(), share=body.share.strip(),
+                               folder=body.folder.strip(), username=body.username.strip(),
+                               password=password, domain=(body.domain or "").strip() or None,
+                               port=body.port)
+        try:
+            smb.check_connection(target)  # sign in and prove the folder is writable
+        except smb.SmbError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        backup.save_target(conn, box, host=target.host, port=target.port, share=target.share,
+                           folder=target.folder, username=target.username, domain=target.domain,
+                           password=password, interval_minutes=body.interval_minutes,
+                           keep=body.keep)
+        return backup.target_status(conn, box)
+
+    @app.delete("/api/backups/smb")
+    def backups_smb_delete(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        conn.execute("DELETE FROM backup_target WHERE id=1")
+        conn.commit()
+        return backup.target_status(conn, box)
 
     @app.get("/api/backups/{name}")
     def backups_download(name: str, _=Depends(current_user)) -> FileResponse:
@@ -289,7 +318,7 @@ def create_app(
             raise HTTPException(401, "Sign in to restore a backup.")
         if not manager.try_exclusive():
             raise HTTPException(409, "A sync is running. Try again when it finishes.")
-        if not backup_lock.acquire(blocking=False):
+        if not backups.lock.acquire(blocking=False):
             manager.release_exclusive()
             raise HTTPException(409, "A backup is running. Try again when it finishes.")
         upload = settings.data_dir / "tmp" / f"upload-{uuid.uuid4().hex}.tar"
@@ -307,7 +336,7 @@ def create_app(
             return {"ok": True, **summary}
         finally:
             upload.unlink(missing_ok=True)
-            backup_lock.release()
+            backups.lock.release()
             manager.release_exclusive()
 
     @app.get("/api/diagnostics/shapes")

@@ -60,3 +60,5 @@ select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; b
 .chart .tick.big { font-size: 15px; }
 .check { display: flex !important; align-items: center; gap: 8px; font-weight: 400; }
 .check input { min-width: 0; width: auto; }
+.row label input { min-width: 0; width: 100%; }
+.row label input[type=checkbox] { width: auto; }

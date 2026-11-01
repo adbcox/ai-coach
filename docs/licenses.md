@@ -15,6 +15,8 @@ This repo is MIT; everything below is permissive, so MIT stays.
 | gpxpy | GPX output | Apache-2.0 |
 | fastapi / pydantic | API and models | MIT |
 | uvicorn | Server | BSD-3-Clause |
+| smbprotocol | SMB backups to a network share | MIT |
+| pyspnego (smbprotocol dependency) | SMB authentication | MIT |
 | garminconnect (unofficial fallback) | Garmin login client | MIT |
 
 Method: a pip dry-run resolved 149 packages for the set above (docling,

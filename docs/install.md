@@ -176,3 +176,25 @@ Settings, **Backups**:
   next to it (`pre-restore-...sqlite3`). Refused while a sync is running.
 - Backups contain your health data and your admin password hash. Treat the
   files like the data itself.
+
+### Automatic backups to a network share (SMB)
+
+Settings, Backups, **Automatic backups to a network share**. Enter the
+server (name or IP), share name, optional folder, username and password
+(optional domain and port). The app signs in and writes a test file before
+saving, so mistakes show up immediately. Then choose how often (every 6 or 12
+hours, daily, weekly, or manual only) and how many to keep.
+
+- Every backup (scheduled, or "Create backup now") is also uploaded to the
+  share; old backups on the share beyond "keep" are deleted. Only files named
+  like `ai-endurance-coach-backup-YYYYMMDD-HHMMSS.tar` are ever touched.
+- **Scheduled backups never include your Garmin key.** For a key-bearing
+  backup use "Create backup now" with a passphrase.
+- The share password is encrypted at rest like the Garmin key. The app talks
+  SMB itself, so there is nothing to mount on the Unraid host. Use a
+  dedicated account with write access to just that share.
+- A failed upload keeps the local backup and shows the reason (wrong
+  password, share not found, no space, unreachable) in Settings.
+- Uploads are written under their final name and size-checked; a partial
+  upload is deleted. The app does not set up SMB encryption or signing
+  itself beyond what the server negotiates.

@@ -80,6 +80,24 @@ CREATE TABLE IF NOT EXISTS wellness_raw (
     PRIMARY KEY (source, kind, start_date, end_date)
 );
 
+-- One optional network-share target for scheduled backups. The password is encrypted
+-- with the master key like the Garmin key.
+CREATE TABLE IF NOT EXISTS backup_target (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    host TEXT NOT NULL,
+    port INTEGER NOT NULL DEFAULT 445,
+    share TEXT NOT NULL,
+    folder TEXT NOT NULL DEFAULT '',
+    username TEXT NOT NULL,
+    domain TEXT,
+    password_enc BLOB NOT NULL,
+    interval_minutes INTEGER NOT NULL DEFAULT 1440,
+    keep INTEGER NOT NULL DEFAULT 14,
+    last_run_at TEXT,
+    last_status TEXT,
+    last_message TEXT
+);
+
 CREATE TABLE IF NOT EXISTS sync_runs (
     id INTEGER PRIMARY KEY,
     provider TEXT NOT NULL,

@@ -105,7 +105,15 @@ export interface SamplesData {
 }
 
 export interface BackupItem { name: string; size: number; created_at: string }
-export interface BackupList { items: BackupItem[]; running: boolean; error: string | null; keep: number }
+export interface SmbStatus {
+  configured: boolean;
+  interval_options: number[];
+  host?: string; port?: number; share?: string; folder?: string; username?: string; domain?: string | null;
+  interval_minutes?: number; keep?: number;
+  last_run_at?: string | null; last_status?: "ok" | "error" | null; last_message?: string | null;
+  next_run_at?: string | null;
+}
+export interface BackupList { items: BackupItem[]; running: boolean; error: string | null; keep: number; smb: SmbStatus }
 export interface RestoreSummary {
   ok: boolean; rows: Record<string, number>; files: number; created_at: string | null;
   secrets_restored: boolean; secrets_in_backup: boolean; previous_database_kept_as: string | null;

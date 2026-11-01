@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, BackupList } from "../api";
 import Restore from "./Restore";
+import SmbBackup from "./SmbBackup";
 
 const size = (b: number) => (b > 1e9 ? (b / 1e9).toFixed(2) + " GB" : (b / 1e6).toFixed(1) + " MB");
 
@@ -77,7 +78,9 @@ export default function Backups({ onRestored }: { onRestored: () => void }) {
           </tbody>
         </table>
       )}
-      {data && <p className="muted">The newest {data.keep} backups are kept on the server; older ones are removed automatically.</p>}
+      {data && <p className="muted">The newest {data.keep} backups are kept on the server; older ones are removed automatically. With a network share set up, each backup is also uploaded there.</p>}
+
+      {data && <SmbBackup key={data.smb.configured ? data.smb.host : "new"} status={data.smb} onChange={load} />}
 
       <details open={showRestore} onToggle={(e) => setShowRestore((e.target as HTMLDetailsElement).open)}>
         <summary>Restore from a backup file</summary>
