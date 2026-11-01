@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.0
+
+New
+- **Race predictions** (new Predict tab): 5K, 10K, half marathon and marathon from your
+  own best efforts, found inside your runs with a sliding window over the per-second
+  distance. Five methods side by side (Riegel 1.06, your own fitted exponent with a 95%
+  interval, critical speed, Daniels/Gilbert VDOT, and a conservative 1.15 scenario).
+- **Shows its math**: every method prints its formula with your numbers filled in; the
+  headline range and median are explained; leave any effort out and watch the result change;
+  a back-test against your own earlier efforts; your recent training beside the half and
+  marathon; sources and limits on the page; whole calculation downloadable as JSON.
+- Mission statement in the README: use your data to train smarter, and always show the math.
+
+Changed
+- Best efforts are computed in the background after each sync (and once for existing
+  activities after you update), so the first Predict page may say it is still analysing.
+
+Docs
+- New [docs/predictions.md](docs/predictions.md). Roadmap: VO2max predictions item.
+
 ## 0.2.2
 
 New

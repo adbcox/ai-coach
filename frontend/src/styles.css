@@ -123,3 +123,17 @@ select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; b
   .ellip { max-width: none; }
 }
 .card > * { min-width: 0; }
+
+/* ---- predictions: show-the-math ---- */
+.badge { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--line); color: var(--muted); }
+.badge.ok { color: #1a7f37; border-color: #1a7f37; } .badge.warn { color: #b35900; border-color: #b35900; }
+.badge.bad { color: var(--error); border-color: var(--error); } .badge.muted { color: var(--muted); }
+button.pick { text-align: left; cursor: pointer; display: grid; gap: 2px; }
+button.pick.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.notice { background: color-mix(in srgb, var(--accent) 10%, transparent); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 0; }
+details.method { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+details.method > summary { cursor: pointer; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.mname { font-weight: 600; flex: 1 1 200px; } .mtime { font-variant-numeric: tabular-nums; font-weight: 600; }
+pre.math { white-space: pre-wrap; word-break: break-word; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font-size: 13px; line-height: 1.5; overflow-x: auto; }
+.warnline { color: #b35900; margin: 4px 0; } .dim { opacity: 0.5; }
+.tablewrap { overflow-x: auto; } .sources { margin: 0; padding-left: 18px; display: grid; gap: 6px; }

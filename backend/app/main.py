@@ -17,7 +17,18 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import __version__, backup, db, diagnostics, recovery, schedule, security, smb
+from . import (
+    __version__,
+    backup,
+    db,
+    diagnostics,
+    efforts,
+    predict,
+    recovery,
+    schedule,
+    security,
+    smb,
+)
 from .config import Settings
 from .crypto import SecretBox
 from .garmin.client import GarminError
@@ -89,7 +100,8 @@ def create_app(
         _conn.commit()
     finally:
         _conn.close()
-    manager = SyncManager(settings, box, client_factory)
+    scanner = efforts.EffortScanner(settings)
+    manager = SyncManager(settings, box, client_factory, after_sync=scanner.start)
     failures: dict[str, list[float]] = defaultdict(list)
     backups = backup.BackupManager(settings, box)
 
@@ -97,6 +109,7 @@ def create_app(
     async def lifespan(_: FastAPI):
         task = None
         if start_scheduler:
+            scanner.start()  # compute best efforts for any activity that has none yet
             async def loop() -> None:
                 while True:
                     await asyncio.sleep(60)
@@ -120,6 +133,7 @@ def create_app(
                   dependencies=[Depends(csrf_guard)], docs_url=None, redoc_url=None)
     app.state.settings = settings
     app.state.sync_manager = manager
+    app.state.effort_scanner = scanner
     app.state.backup_manager = backups
 
     def get_conn() -> Iterator:
@@ -399,6 +413,35 @@ def create_app(
                              "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(body.max_hr),))
         conn.commit()
         return read_prefs(conn)
+
+    @app.get("/api/predictions")
+    def predictions(window_days: int = 365, include_indoor: bool = False, include_trail: bool = False,
+                    _=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        window_days = max(30, min(window_days, 1825))
+        result = predict.build(conn, window_days, include_indoor, include_trail)
+        result["scan"] = {"running": scanner.running, "done": scanner.done, "total": scanner.total,
+                          "pending": len(efforts.pending(conn))}
+        return result
+
+    @app.post("/api/efforts/{activity_id}/exclude")
+    def effort_exclude(activity_id: int, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        get_activity(conn, activity_id)
+        conn.execute("INSERT OR IGNORE INTO effort_exclusions (activity_id, created_at) VALUES (?, ?)",
+                     (activity_id, _now()))
+        conn.commit()
+        return {"excluded": True}
+
+    @app.delete("/api/efforts/{activity_id}/exclude")
+    def effort_include(activity_id: int, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        conn.execute("DELETE FROM effort_exclusions WHERE activity_id=?", (activity_id,))
+        conn.commit()
+        return {"excluded": False}
+
+    @app.post("/api/efforts/rescan", status_code=202)
+    def efforts_rescan(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        conn.execute("DELETE FROM effort_scan")
+        conn.commit()
+        return {"started": scanner.start()}
 
     @app.get("/api/recovery")
     def recovery_days(days: int = 90, _=Depends(current_user), conn=Depends(get_conn)) -> dict:

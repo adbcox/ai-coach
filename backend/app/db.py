@@ -98,6 +98,28 @@ CREATE TABLE IF NOT EXISTS backup_target (
     last_message TEXT
 );
 
+-- Fastest time over standard distances within each running activity (see efforts.py).
+CREATE TABLE IF NOT EXISTS best_efforts (
+    activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    distance_m REAL NOT NULL,
+    time_s REAL NOT NULL,
+    start_offset_s REAL NOT NULL,
+    avg_hr REAL,
+    ascent_m REAL,
+    gap_s REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (activity_id, distance_m)
+);
+CREATE TABLE IF NOT EXISTS effort_scan (
+    activity_id INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,
+    scanned_at TEXT NOT NULL,
+    version INTEGER NOT NULL
+);
+-- Activities the athlete has chosen to leave out of predictions.
+CREATE TABLE IF NOT EXISTS effort_exclusions (
+    activity_id INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS sync_runs (
     id INTEGER PRIMARY KEY,
     provider TEXT NOT NULL,

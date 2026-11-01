@@ -103,7 +103,9 @@ def _save_file(path, content: bytes) -> None:
 
 class SyncManager:
     def __init__(self, settings: Settings, box: SecretBox,
-                 client_factory: ClientFactory = default_client_factory) -> None:
+                 client_factory: ClientFactory = default_client_factory,
+                 after_sync: Callable[[], object] | None = None) -> None:
+        self.after_sync = after_sync
         self.settings = settings
         self.box = box
         self.client_factory = client_factory
@@ -159,6 +161,11 @@ class SyncManager:
         conn.commit()
         conn.close()
         self._lock.release()
+        if self.after_sync:
+            try:
+                self.after_sync()
+            except Exception:  # a failed follow-up must never fail the sync itself
+                pass
         return result
 
     def _sync(self, conn, run_id: int, mode: str) -> SyncResult:

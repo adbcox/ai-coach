@@ -4,6 +4,8 @@
 
 Self-hosted, AI-optional endurance training dashboard: Garmin sync, run analysis and a literature ingest area, in a single Docker container.
 
+**Mission: use your data to train smarter, and always show the math.** You should know how the sausage is made, so every number should be traceable to the data and formula behind it.
+
 > **Status: pre-alpha, but usable.** Garmin sync (full history), dashboard, run detail with map and charts, recovery page, backups (including to a network share) and a first-run setup all work. Literature ingest and agent (AI) access are next. See the [roadmap](docs/roadmap.md), [changelog](CHANGELOG.md) and [install guide](docs/install.md). Default port: **26219**.
 
 ## Disclaimer: vibe-coded, use at your own risk
@@ -27,6 +29,7 @@ This project was largely written with AI assistance ("vibe-coded") and has not h
 - **Garmin sync**: your whole activity history (with per-second data) plus daily health data (sleep, HRV, Body Battery, stress, resting heart rate, steps, ...), kept up to date automatically (interval set in Settings; quick sync button on the dashboard).
 - **Dashboard**: last 14 days of distance by sport, rolling weekly mileage (km per week) and rolling 7-day longest run, over the last 4 weeks. Opens on the sport you choose in Settings (Running by default).
 - **Activities and run detail**: filterable list; per-run map, pace/speed, heart rate (with zone bands), elevation, power and cadence charts linked to the map, heart-rate zone time, running dynamics, GPX download.
+- **Race predictions**: 5K, 10K, half marathon and marathon from your own best efforts, using several established methods side by side. Each number opens into the formula with your numbers filled in, the uncertainty, a back-test against your own history, and the sources. See [how it works](docs/predictions.md).
 - **Recovery**: sleep score and duration, HRV against your balanced range, resting heart rate, Body Battery and stress, 30 days to 1 year.
 - **On your phone**: the whole app works in a phone browser, with a bottom tab bar and charts you can scrub with a finger (an installable app comes later).
 - **Backups**: one-click portable backup and restore (move to a new machine), plus scheduled uploads to an SMB network share. Your Garmin key is encrypted at rest and never included in scheduled backups.
@@ -34,7 +37,7 @@ This project was largely written with AI assistance ("vibe-coded") and has not h
 
 ## Coming next
 
-1. Race time predictions that show their working, and literature ingest: upload studies, videos and articles; kept as an actionable summary, full-text Markdown and the original source
+1. VO2max estimates that show their working, and literature ingest: upload studies, videos and articles; kept as an actionable summary, full-text Markdown and the original source
 2. Heart-rate zones from your Garmin settings, a first training-load view, "rebuild from stored files"
 3. More data sources (Strava, COROS) with de-duplication
 4. Agent connectivity (REST + MCP) so any AI can read your data, then mobile layout and an installable web app
@@ -43,6 +46,7 @@ This project was largely written with AI assistance ("vibe-coded") and has not h
 
 - [Install guide](docs/install.md) (Docker, Unraid, first run)
 - [Roadmap](docs/roadmap.md) and [changelog](CHANGELOG.md)
+- [Race predictions: how they work](docs/predictions.md)
 - [Garmin Personal API](docs/garmin.md): key setup, token exchange, data coverage, terms notes
 - [Ingest area](docs/ingest.md): tiers, retrieval order, tooling, templates
 
