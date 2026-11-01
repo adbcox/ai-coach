@@ -1,0 +1,17 @@
+services:
+  coach:
+    build:
+      context: .
+      target: slim
+    # Or, once published: image: ghcr.io/help-for-me/ai-endurance-coach:slim
+    container_name: ai-endurance-coach
+    restart: unless-stopped
+    ports:
+      - "26219:26219"
+    volumes:
+      - ./data:/data
+    environment:
+      # Set to "true" only when serving over HTTPS (reverse proxy / cloud).
+      AEC_SECURE_COOKIES: "false"
+      # Optional: keep the master key off the data volume (recommended on a cloud host).
+      # AEC_APP_SECRET: "a-long-random-string"

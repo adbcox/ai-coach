@@ -31,7 +31,7 @@ curl -X POST 'https://personal.connectapi.garmin.com/personalapitoken-service/pe
 
 ## Data coverage (probed against one real account, 2026-11-01)
 
-- **Covered:** activities, sleep, HRV, daily summaries, **Body Battery**
+- **Covered (verified against one real account):** activities, sleep, HRV, daily summaries, **Body Battery**
   (min/max/charged/drained/latest + separate intraday report) and
   **stress** (average/max + rest/low/medium/high proportions) — both
   populated on 31 of 31 recent days. Fitness age, heart-rate zones and
@@ -42,10 +42,22 @@ curl -X POST 'https://personal.connectapi.garmin.com/personalapitoken-service/pe
   predictions. Caveat: paths were guessed from knowledge of Garmin's
   internal API, not official docs, so this matches the community claim
   that these are missing but is **not proof** they're unreachable.
-  Check the official docs page above for the authoritative endpoint list.
-- Impact: the app loses Garmin's own readiness/VO2max/training-status
-  numbers; derive equivalents from activities + HRV/sleep, or fall back
-  to `python-garminconnect` for just those metrics if they prove needed.
+  Garmin's Swagger page
+  ([Personal API Swagger docs](https://developer.garmin.com/gc-developer-program/personal/swagger-docs/))
+  has the authoritative endpoint list; it has not been read yet.
+- **Per-activity training metrics are present** (checked on 30 recent
+  activity records, 109 distinct fields; verified directly): training
+  load, aerobic and anaerobic training effect with their messages, and a
+  training-effect label (29 of 30 activities); cycling power metrics
+  (average, max, normalized, time in zone; 20 of 30). No VO2max field
+  appeared in the activity records.
+- **Impact:** training readiness, training status and VO2max remain
+  unavailable as far as found, so the app doesn't lose every training
+  number: training load and training effect come with each activity. For
+  the missing ones, derive equivalents from activities + HRV/sleep.
+  `python-garminconnect` is an unofficial fallback that is **unverified**
+  (how it authenticates, and whether it conflicts with the Personal API
+  terms, are unknown), so don't rely on it.
 
 ## FIT file download (confirmed 2026-11-01)
 
@@ -84,11 +96,10 @@ files; unverified.
 - The key **expires** (you pick the period at creation). Track the expiry
   date and add a reminder a few weeks ahead (planned: in-app warning).
 
-## Fallback: python-garminconnect (unofficial)
+## Fallback: python-garminconnect (unofficial, unverified)
 
 [python-garminconnect](https://github.com/cyberjunky/python-garminconnect)
-logs in with your own credentials. Actively maintained (adapted to a
-March 2026 auth change via `curl_cffi`), but it's unauthorized automated
-access in a generic ToS sense and breaks when Garmin changes auth. Use
-only for metrics the Personal API lacks.
-
+is a community client. Not used by this app. How it authenticates and
+whether using it conflicts with Garmin's terms have not been checked, so
+treat it as an unvetted option only if a metric the Personal API lacks
+proves necessary.

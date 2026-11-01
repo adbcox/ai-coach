@@ -1,0 +1,93 @@
+"""SQLite storage (WAL mode). One short-lived connection per request or job."""
+
+from __future__ import annotations
+
+import sqlite3
+from pathlib import Path
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at REAL NOT NULL,
+    expires_at REAL NOT NULL
+);
+
+-- One row per provider. The secret is encrypted (see crypto.py), never plain text.
+CREATE TABLE IF NOT EXISTS provider_credentials (
+    provider TEXT PRIMARY KEY,
+    secret_enc BLOB NOT NULL,
+    updated_at TEXT NOT NULL,
+    validated_at TEXT
+);
+
+-- Every activity is stored with its source and the source's own id, so a second
+-- provider can be linked later without migrating data. canonical_id is reserved
+-- for cross-source linking/de-duplication (roadmap: "With 2nd provider").
+CREATE TABLE IF NOT EXISTS activities (
+    id INTEGER PRIMARY KEY,
+    source TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    canonical_id INTEGER,
+    start_time TEXT NOT NULL,
+    sport TEXT,
+    name TEXT,
+    distance_m REAL,
+    duration_s REAL,
+    elevation_gain_m REAL,
+    avg_hr REAL,
+    max_hr REAL,
+    summary_json TEXT,
+    file_path TEXT,
+    has_samples INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    UNIQUE (source, source_id)
+);
+CREATE INDEX IF NOT EXISTS idx_activities_start ON activities(start_time);
+
+CREATE TABLE IF NOT EXISTS samples (
+    activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    t INTEGER NOT NULL,          -- unix seconds
+    lat REAL, lon REAL, alt REAL,
+    hr INTEGER, cadence INTEGER, power INTEGER,
+    speed REAL,                  -- m/s
+    dist REAL,                   -- cumulative metres
+    PRIMARY KEY (activity_id, t)
+) WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS sync_runs (
+    id INTEGER PRIMARY KEY,
+    provider TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    finished_at TEXT,
+    status TEXT NOT NULL,        -- running | ok | error
+    new_activities INTEGER NOT NULL DEFAULT 0,
+    message TEXT
+);
+"""
+
+
+def connect(path: Path) -> sqlite3.Connection:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path, timeout=30)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    return conn
+
+
+def init_db(path: Path) -> None:
+    conn = connect(path)
+    try:
+        conn.executescript(SCHEMA)
+        conn.commit()
+    finally:
+        conn.close()

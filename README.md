@@ -2,7 +2,7 @@
 
 Self-hosted, AI-optional endurance training dashboard: Garmin sync, run analysis and a literature ingest area, in a single Docker container.
 
-> **Status: pre-alpha, planning.** Nothing is built yet. See the [roadmap](docs/roadmap.md).
+> **Status: pre-alpha, v0.1 skeleton.** First-run setup, login, encrypted Garmin key and Garmin activity sync work; dashboard charts and maps are next. See the [roadmap](docs/roadmap.md) and [install guide](docs/install.md). Default port: **26219**.
 
 ## Disclaimer: vibe-coded, use at your own risk
 
@@ -29,6 +29,7 @@ This project was largely written with AI assistance ("vibe-coded") and has not h
 
 ## Docs
 
+- [Install guide](docs/install.md) (Docker, Unraid, first run)
 - [Roadmap](docs/roadmap.md)
 - [Garmin Personal API](docs/garmin.md): key setup, token exchange, data coverage, terms notes
 - [Ingest area](docs/ingest.md): tiers, retrieval order, tooling, templates

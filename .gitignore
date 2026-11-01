@@ -8,6 +8,10 @@ data/
 *.sqlite3
 *.db
 
+# Node / frontend
+node_modules/
+frontend/dist/
+
 # Python
 __pycache__/
 *.py[cod]

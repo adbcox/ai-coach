@@ -1,0 +1,205 @@
+"""Garmin -> SQLite sync."""
+
+from __future__ import annotations
+
+import json
+import os
+import threading
+import time
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
+from typing import Any
+
+from . import db
+from .config import Settings
+from .crypto import SecretBox
+from .fit.parser import FitError, ParsedActivity, extract_fit, parse_fit
+from .garmin.client import GarminClient, GarminError
+
+PROVIDER = "garmin"
+PAGE = 50
+MAX_PAGES = 200
+
+ClientFactory = Callable[[str, str], GarminClient]
+
+
+def default_client_factory(api_key: str, base_url: str) -> GarminClient:
+    return GarminClient(api_key, base_url)
+
+
+@dataclass
+class SyncResult:
+    status: str
+    new_activities: int = 0
+    message: str = ""
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def _parse_gmt(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.strptime(value[:19], "%Y-%m-%d %H:%M:%S").replace(
+            tzinfo=UTC).isoformat()
+    except ValueError:
+        return None
+
+
+def _f(value: Any) -> float | None:
+    try:
+        return None if value is None else float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _insert(conn, item: dict[str, Any], parsed: ParsedActivity, rel_path: str) -> bool:
+    source_id = str(item.get("activityId"))
+    start = parsed.start_time.isoformat() if parsed.start_time else _parse_gmt(
+        item.get("startTimeGMT"))
+    if not start:
+        return False
+    activity_type = item.get("activityType")
+    type_key = activity_type.get("typeKey") if isinstance(activity_type, dict) else None
+    cur = conn.execute(
+        "INSERT OR IGNORE INTO activities (source, source_id, start_time, sport, name, "
+        "distance_m, duration_s, elevation_gain_m, avg_hr, max_hr, summary_json, file_path, "
+        "has_samples, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        (
+            PROVIDER, source_id, start,
+            type_key or parsed.sport,
+            item.get("activityName"),
+            parsed.distance_m if parsed.distance_m is not None else _f(item.get("distance")),
+            parsed.duration_s if parsed.duration_s is not None else _f(item.get("duration")),
+            parsed.elevation_gain_m if parsed.elevation_gain_m is not None
+            else _f(item.get("elevationGain")),
+            parsed.avg_hr if parsed.avg_hr is not None else _f(item.get("averageHR")),
+            parsed.max_hr if parsed.max_hr is not None else _f(item.get("maxHR")),
+            json.dumps(item), rel_path, 1 if parsed.samples else 0, _now(),
+        ),
+    )
+    if cur.rowcount == 0:
+        return False
+    activity_id = cur.lastrowid
+    conn.executemany(
+        "INSERT OR IGNORE INTO samples (activity_id, t, lat, lon, alt, hr, cadence, power, "
+        "speed, dist) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        [(activity_id, s.t, s.lat, s.lon, s.alt, s.hr, s.cadence, s.power, s.speed, s.dist)
+         for s in parsed.samples],
+    )
+    return True
+
+
+def _save_file(path, content: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".part")
+    tmp.write_bytes(content)
+    os.replace(tmp, path)
+
+
+class SyncManager:
+    def __init__(self, settings: Settings, box: SecretBox,
+                 client_factory: ClientFactory = default_client_factory) -> None:
+        self.settings = settings
+        self.box = box
+        self.client_factory = client_factory
+        self._lock = threading.Lock()
+
+    @property
+    def running(self) -> bool:
+        return self._lock.locked()
+
+    def start_background(self) -> bool:
+        if self._lock.locked():
+            return False
+        threading.Thread(target=self.run_once, daemon=True, name="garmin-sync").start()
+        return True
+
+    def run_once(self) -> SyncResult:
+        if not self._lock.acquire(blocking=False):
+            return SyncResult("error", message="A sync is already running.")
+        conn = db.connect(self.settings.db_path)
+        run_id = conn.execute(
+            "INSERT INTO sync_runs (provider, started_at, status) VALUES (?, ?, 'running')",
+            (PROVIDER, _now()),
+        ).lastrowid
+        conn.commit()
+        try:
+            result = self._sync(conn)
+        except Exception as exc:  # never leave a run stuck as 'running'
+            result = SyncResult("error", message=f"Unexpected error: {type(exc).__name__}")
+        conn.execute(
+            "UPDATE sync_runs SET finished_at=?, status=?, new_activities=?, message=? WHERE id=?",
+            (_now(), result.status, result.new_activities, result.message, run_id),
+        )
+        conn.commit()
+        conn.close()
+        self._lock.release()
+        return result
+
+    def _sync(self, conn) -> SyncResult:
+        row = conn.execute(
+            "SELECT secret_enc FROM provider_credentials WHERE provider=?", (PROVIDER,)
+        ).fetchone()
+        if row is None:
+            return SyncResult("error", message="No Garmin key configured.")
+        try:
+            api_key = self.box.decrypt(row["secret_enc"])
+            client = self.client_factory(api_key, self.settings.garmin_base_url)
+        except (ValueError, GarminError) as exc:
+            return SyncResult("error", message=str(exc))
+
+        latest = conn.execute(
+            "SELECT MAX(start_time) AS m FROM activities WHERE source=?", (PROVIDER,)
+        ).fetchone()["m"]
+        if latest:
+            since = datetime.fromisoformat(latest).date() - timedelta(days=3)
+        else:
+            since = date.today() - timedelta(days=self.settings.backfill_days)
+        until = date.today() + timedelta(days=1)
+
+        new = 0
+        failures: list[str] = []
+        try:
+            with client:
+                client.ensure_token()
+                for page in range(MAX_PAGES):
+                    items = client.search_activities(
+                        start=page * PAGE, limit=PAGE,
+                        start_date=since.isoformat(), end_date=until.isoformat(),
+                    )
+                    for item in items:
+                        source_id = str(item.get("activityId", ""))
+                        if not source_id.isdecimal():
+                            failures.append("activity without a numeric id")
+                            continue
+                        exists = conn.execute(
+                            "SELECT 1 FROM activities WHERE source=? AND source_id=?",
+                            (PROVIDER, source_id),
+                        ).fetchone()
+                        if exists:
+                            continue
+                        try:
+                            blob = client.download_activity(source_id)
+                            parsed = parse_fit(extract_fit(blob))
+                        except FitError as exc:
+                            failures.append(f"{source_id}: {exc}")
+                            continue
+                        rel = f"activities/{PROVIDER}/{source_id}.zip"
+                        _save_file(self.settings.data_dir / rel, blob)
+                        if _insert(conn, item, parsed, rel):
+                            new += 1
+                        conn.commit()
+                        time.sleep(self.settings.request_delay_s)
+                    if len(items) < PAGE:
+                        break
+        except GarminError as exc:
+            conn.commit()
+            return SyncResult("error", new, f"{exc} ({new} activities saved before the error)")
+        msg = f"{new} new activities."
+        if failures:
+            msg += f" {len(failures)} skipped: " + "; ".join(failures[:3])
+        return SyncResult("ok", new, msg)
