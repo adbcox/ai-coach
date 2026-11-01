@@ -124,7 +124,7 @@ Settings says what failed.
 | `AEC_DATA_DIR` | `/data` | Data volume |
 | `AEC_SECURE_COOKIES` | `false` | Set `true` when served over HTTPS |
 | `AEC_APP_SECRET` / `AEC_APP_SECRET_FILE` | unset | Master key override; keeps the encryption key off the data volume (use on a cloud host) |
-| `AEC_SYNC_INTERVAL_HOURS` | `6` | Background sync interval, `0` = off |
+| `AEC_SYNC_INTERVAL_HOURS` | `6` | Default automatic sync interval until you change it in Settings; `0` = off |
 
 ## Data and backups
 
