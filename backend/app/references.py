@@ -64,8 +64,9 @@ REFERENCES: list[dict[str, Any]] = [
         "used_for": ["VDOT race-time prediction", "VDOT as a race-performance fitness index (VO2max section)"],
         "how_used": "oxygen cost = -4.60 + 0.182258 v + 0.000104 v^2 (v in m/min); fraction of VO2max held = 0.8 + 0.1894393 "
                     "e^(-0.012778 t) + 0.2989558 e^(-0.1932605 t) (t in minutes); VDOT = cost / fraction. Solved for the target distance.",
-        "limits": "VDOT is a performance score, not a measured VO2max. It assumes the athlete has the endurance base for the "
-                  "distance being predicted.",
+        "limits": "A 1979 model from competitive runners' performances. VDOT is a performance score, not a measured VO2max: it mixes aerobic "
+                  "capacity with running economy, and one 2020 study of experienced marathoners found it related to a running-economy measure "
+                  "but not to laboratory VO2max. It assumes the endurance base for the distance being predicted.",
     },
     {
         "id": "poole2016", "short": "Poole et al. 2016", "kind": "paper",
@@ -140,6 +141,56 @@ REFERENCES: list[dict[str, Any]] = [
         "used_for": ["Context for half-to-marathon prediction and for showing several methods side by side"],
         "how_used": "Not a formula used by the app; informs the choice to show methods together instead of picking one.",
         "limits": "One race, one population.",
+    },
+    {
+        "id": "frontiers2024_acsm", "short": "Frontiers 2024: ACSM equations", "kind": "paper",
+        "authors": "See source", "year": 2024,
+        "title": "Article on the accuracy of the ACSM metabolic equations for walking and running, proposing the HYPAC system "
+                 "(Frontiers in Sports and Active Living, DOI 10.3389/fspor.2024.1522214; exact title not yet verified)",
+        "venue": "Frontiers in Sports and Active Living (2024/2025)", "doi": "10.3389/fspor.2024.1522214",
+        "url": "https://www.frontiersin.org/journals/sports-and-active-living/articles/10.3389/fspor.2024.1522214/full",
+        "verified": "secondary",
+        "verified_note": "Search summaries only (the publisher's site cannot be reached from the build environment): the ACSM walking and "
+                         "running equations disagree at 8 km/h and often lack accuracy; the proposed system reported a relative error of -0.03 "
+                         "against measured VO2.",
+        "used_for": ["Candidate for a more accurate oxygen-cost-of-running equation (NOT used in any calculation yet)"],
+        "how_used": "Not used. It is the reason the app does not build a VO2max method on the standard ACSM running equation.",
+        "limits": "Not read in full; the claims above come from summaries.",
+    },
+    {
+        "id": "acsm_athletes", "short": "ACSM equation in athletes (Hippokratia)", "kind": "paper",
+        "authors": "See source", "year": None,
+        "title": "Indirect estimation of VO2max in athletes by ACSM's equation: valid or not?",
+        "venue": "Hippokratia", "doi": None, "url": "https://www.hippokratia.gr/?p=1728",
+        "verified": "secondary",
+        "verified_note": "Search summary only: VO2max calculated with the ACSM running equation was 14.6% higher than measured in athletes aged "
+                         "18-37 on the Bruce protocol.",
+        "used_for": ["Why VO2max from the standard ACSM running-cost equation is treated with suspicion (NOT used in any calculation)"],
+        "how_used": "Not used; evidence for caution.", "limits": "Summary only; one protocol, one athlete group.",
+    },
+    {
+        "id": "elife2023", "short": "eLife 2023: submaximal VO2max models", "kind": "paper",
+        "authors": "See source", "year": 2023,
+        "title": "VO2max prediction based on submaximal cardiorespiratory relationships and body composition in male runners and "
+                 "cyclists: a population study",
+        "venue": "eLife (2023)", "doi": None, "url": "https://elifesciences.org/articles/86291",
+        "verified": "secondary",
+        "verified_note": "Search summary only (publisher site unreachable from the build environment): regression models for runners and "
+                         "cyclists with internal validation.",
+        "used_for": ["Modern evidence on submaximal prediction (NOT used: it needs laboratory-grade breathing data a watch does not record)"],
+        "how_used": "Not used.", "limits": "Males; needs measured cardiorespiratory variables and body composition.",
+    },
+    {
+        "id": "firstbeat2017", "short": "Firstbeat white paper 2017", "kind": "analysis",
+        "authors": "Firstbeat Technologies", "year": 2017,
+        "title": "Automated fitness level (VO2max) estimation with heart rate and speed data",
+        "venue": "Company white paper (not peer reviewed)", "doi": None,
+        "url": "https://assets.firstbeat.com/firstbeat/uploads/2017/06/white_paper_VO2max_30.6.2017.pdf",
+        "verified": "secondary",
+        "verified_note": "Known from search summaries: the approach behind Garmin's VO2max (heart rate and speed during runs); the company reports "
+                         "about 5% error in 79 runners. Company-sourced accuracy claims have not been independently verified.",
+        "used_for": ["Context for how your watch's own VO2max number is produced (NOT used in any calculation)"],
+        "how_used": "Not used. Explains why the watch's value and this app's estimates can differ.", "limits": "Manufacturer document.",
     },
     {
         "id": "fetch_everyone", "short": "Fetch Everyone analysis", "kind": "analysis",

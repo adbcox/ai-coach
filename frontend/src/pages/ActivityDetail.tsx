@@ -123,7 +123,7 @@ export default function ActivityDetail({ id, back }: { id: number; back: () => v
         <section className="card wide">
           <LinkedCharts data={samples} running={running} onHover={onHover} zones={zones} />
           <span className="muted">
-            Showing {samples.t.length} of {samples.total_samples} samples. Hover (or touch and drag) a chart to see that point on the map.{zones.length > 0 && ` Heart-rate bands: ${zoneNote} Change max heart rate in Settings.`}
+            Showing {samples.t.length} of {samples.total_samples} samples. Hover (or touch and drag) a chart to see that point on the map.{zones.length > 0 && " Heart-rate bands are estimated (see Settings)."}
           </span>
         </section>
       )}

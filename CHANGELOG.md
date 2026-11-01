@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.1
+
+Changed
+- **Calmer screens.** The Predict page opens with just the four predictions, a one-line explanation each, and a
+  compact VO2max card. All the working (efforts, methods, back-test, formulas, sources) sits behind "Show the
+  math", nothing expanded by default (134 words visible instead of about 2,700). Settings text trimmed the same way.
+- VO2max methods now show the age of the research they are based on (1979 and 2004), and the card says
+  plainly that these are older models for tracking trends.
+
+Fixed
+- The phone tab bar no longer appears at the bottom of the desktop layout.
+
+Docs
+- References: newer VO2max evidence recorded (not used in any calculation yet): a 2024 critique of the ACSM
+  running-cost equation, a 2023 eLife submaximal-prediction study, an ACSM-in-athletes study, and the Firstbeat white
+  paper behind Garmin's own number, each labelled with how well it was checked. VDOT's limits now mention that
+  a 2020 study of marathoners related it to running economy rather than laboratory VO2max.
+
 ## 0.4.0
 
 New

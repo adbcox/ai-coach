@@ -114,7 +114,8 @@ def test_vo2max_methods_show_their_math_and_cite_known_sources(authed, settings)
     assert methods["hr_ratio"]["low"] == pytest.approx(15.3 * 190 / 50 - 4.7)
     assert "15.3 x 190 / 50" in " ".join(methods["hr_ratio"]["steps"])
     assert d["watch"]["value"] == 55 and len(d["watch"]["differences"]) == 2
-    assert "not a measured" in d["note"].lower() or "none of these is a measured" in d["note"].lower()
+    assert "not measurements" in d["note"] and "1979" in d["note"] and "2004" in d["note"]
+    assert {m["source_year"] for m in d["methods"]} == {1979, 2004}
     ids = {r["id"] for r in references.REFERENCES}
     assert all(m["citation"] in ids for m in d["methods"]) and {c["id"] for c in d["citations"]} <= ids
     assert d["trend"] and d["trend"][-1]["vdot"] > 40

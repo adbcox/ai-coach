@@ -15,7 +15,7 @@ from . import maxhr, predict, recovery, references
 UTH_FACTOR = 15.3     # Uth et al. 2004: VO2max = 15.3 x HRmax / HRrest (ml/kg/min)
 UTH_SEE = 4.7         # reported standard error with age-predicted HRmax (about 7.8%)
 
-CITATION_IDS = ["daniels1979", "uth2004", "molina2022", "tanaka2001", "kasiak2023"]
+CITATION_IDS = ["daniels1979", "uth2004", "molina2022", "firstbeat2017", "frontiers2024_acsm", "elife2023", "tanaka2001", "kasiak2023"]
 
 
 def build(conn: sqlite3.Connection, now: datetime | None = None) -> dict[str, Any]:
@@ -31,7 +31,7 @@ def build(conn: sqlite3.Connection, now: datetime | None = None) -> dict[str, An
         mid = median(vals)
         methods.append({
             "id": "vdot", "name": "From race performance (VDOT)", "value": mid, "low": min(vals), "high": max(vals),
-            "unit": "VDOT", "status": "ok", "citation": "daniels1979",
+            "unit": "VDOT", "status": "ok", "citation": "daniels1979", "source_year": 1979,
             "steps": ["VDOT = oxygen cost of the speed / fraction of VO2max a runner can hold for that duration "
                       "(Daniels & Gilbert equations; see the Predict page for the equations with numbers).",
                       *[f"  {predict.km(d)} in {predict.fmt_time(e['time_s'])} ({e['date'][:10]}) -> VDOT {v:.1f}" for d, e, v in rows],
@@ -53,7 +53,7 @@ def build(conn: sqlite3.Connection, now: datetime | None = None) -> dict[str, An
         v = UTH_FACTOR * hrmax / hrrest
         methods.append({
             "id": "hr_ratio", "name": "Heart rate ratio (resting vs max)", "value": v, "low": v - UTH_SEE, "high": v + UTH_SEE,
-            "unit": "ml/kg/min", "status": "ok", "citation": "uth2004",
+            "unit": "ml/kg/min", "status": "ok", "citation": "uth2004", "source_year": 2004,
             "steps": ["Formula: VO2max = 15.3 x HRmax / HRrest.",
                       f"HRmax = {hrmax} bpm ({'your setting' if custom else 'estimated from your own peaks'}).",
                       f"HRrest = {hrrest:.0f} bpm (median of {len(rest_days)} days of resting heart rate in the last 30 days).",
@@ -87,6 +87,7 @@ def build(conn: sqlite3.Connection, now: datetime | None = None) -> dict[str, An
             trend.append({"date": end.date().isoformat(), "vdot": predict.vdot(top["distance_m"], top["time_s"]),
                           "effort": predict.brief(top)})
     return {"methods": methods, "watch": watch_info, "trend": trend, "citations": references.get(CITATION_IDS),
-            "note": "None of these is a measured VO2max, which needs a lab test. They are estimates for tracking "
-                    "trends, and each method has its own known error (shown beside it).",
+            "note": "Estimates for tracking trends, not measurements (a lab test is the reference). Both methods here come from older research "
+                    "(1979 and 2004). Newer evidence says wearable-style estimates are good for trends but individually uncertain, and that "
+                    "the standard running-cost equation behind many submaximal methods is biased in athletes, so the app does not build on it yet.",
             "max_hr": {"value": hrmax, "estimate": est["estimate"]}}

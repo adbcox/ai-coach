@@ -57,10 +57,8 @@ function Preferences() {
                onBlur={saveMaxHr} placeholder={auto ? `automatic (${auto})` : "automatic"} style={{ maxWidth: 200 }} />
       </label>
       <span className="muted">
-        Used to draw heart-rate zones behind the heart-rate chart (Strava colours: grey, blue, green, orange, red).
-        Blank = the highest heart rate recorded in your activities{auto ? ` (${auto} bpm)` : ""}.
-        {zones.length > 0 && ` Zones: ${zones.map((z) => `Z${z.zone} ${z.low}\u2013${z.high}`).join(", ")}.`} These are
-        estimates at 50/60/70/80/90% of max heart rate; your Garmin watch may use different zone boundaries.
+        Draws the heart-rate zones on run charts. Blank = estimated from your own recorded peaks{auto ? ` (${auto} bpm)` : ""}.
+        {zones.length > 0 && ` Zones: ${zones.map((z) => `Z${z.zone} ${z.low}\u2013${z.high}`).join(", ")}.`}
       </span>
       {hrError && <span className="error">{hrError}</span>}
       <MaxHr onApplied={() => api<PrefData>("/preferences").then(apply)} />
@@ -69,7 +67,7 @@ function Preferences() {
                onBlur={async () => apply(await api<PrefData>("/preferences", "PUT", { birth_year: birthYear.trim() ? Number(birthYear) : null }))}
                placeholder="only used for an age-formula comparison" style={{ maxWidth: 260 }} />
       </label>
-      <span className="muted">Zone convention: a common five-zone split of max heart rate, not necessarily your Garmin's boundaries (<Cite id="garmin_zones" />).</span>
+      <details><summary className="muted">About the zones</summary><p className="muted">A common five-zone split of max heart rate (50/60/70/80/90%), which may differ from your Garmin's own boundaries. <Cite id="garmin_zones" /></p></details>
     </section>
   );
 }

@@ -75,7 +75,7 @@ select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; b
 .chart .tick, .chart .tick.big { font-size: 12px; }
 .nowrap { white-space: nowrap; }
 .ellip { max-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tabbar { display: none; }
+.shell .tabbar { display: none; }
 
 /* ---- phones and small tablets ---- */
 @media (max-width: 700px) {
@@ -100,7 +100,7 @@ select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; b
   .row > label { flex: 1 1 100% !important; min-width: 0 !important; width: auto !important; }
   .row input:not([type=checkbox]) { min-width: 0; }
   th, td { padding: 8px 6px; }
-  .tabbar {
+  .shell .tabbar {
     display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
     background: var(--card); border-top: 1px solid var(--line);
     padding-bottom: env(safe-area-inset-bottom);
@@ -142,3 +142,11 @@ pre.math { white-space: pre-wrap; word-break: break-word; background: var(--bg);
 .cite .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--muted); }
 .cite .dot.ok { background: #1a7f37; } .cite .dot.warn { background: #b35900; }
 .card.focused { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+
+/* progressive disclosure: calm by default, the working one tap away */
+details > summary { cursor: pointer; }
+details.settingsbar { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; background: var(--card); }
+details.card > summary { font-weight: 600; }
+details.method details.method { margin-top: 6px; }
+
+details.card > summary { padding: 2px 0; }

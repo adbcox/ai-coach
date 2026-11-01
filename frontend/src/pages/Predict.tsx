@@ -41,7 +41,7 @@ const STATUS: Record<string, [string, string]> = {
 };
 const METHOD_LABEL: Record<string, string> = { riegel_106: "Riegel k = 1.06", riegel_fit: "Your fitted exponent", vdot: "VDOT" };
 
-export default function Predict({ goSettings }: { goSettings: () => void }) {
+export default function Predict(_props: { goSettings: () => void }) {
   const [windowDays, setWindowDays] = useState(365);
   const [indoor, setIndoor] = useState(true);
   const [trail, setTrail] = useState(true);
@@ -90,34 +90,17 @@ export default function Predict({ goSettings }: { goSettings: () => void }) {
   if (error) return <p className="error">{error}</p>;
   if (!data) return <p className="muted">Loading…</p>;
 
+  const summary = `${windowDays >= 730 ? "2 years" : windowDays >= 365 ? "12 months" : windowDays >= 180 ? "6 months" : "3 months"} of runs · ${gap ? "hills adjusted" : "hills not adjusted"}${indoor ? " · treadmill included" : ""}${trail && gap ? " · trail included" : ""}`;
   return (
     <div className="stack">
       <div>
         <h2 style={{ margin: 0 }}>Race predictions</h2>
-        <p className="muted" style={{ margin: "4px 0 0" }}>{data.mission} Every number below can be opened to see how it was made.</p>
+        <p className="muted" style={{ margin: "4px 0 0" }}>Worked out from your own runs. Tap a distance, then "Show the math" to see exactly how.</p>
       </div>
 
       {data.scan.pending > 0 && (
         <p className="notice">Analysing your runs for best efforts ({data.scan.done} of {data.scan.total || data.scan.pending} done). Predictions fill in as this finishes.</p>
       )}
-
-      <section className="card wide">
-        <div className="row">
-          <label>Use efforts from the last
-            <select value={windowDays} onChange={(e) => setWindowDays(Number(e.target.value))}>
-              <option value={90}>3 months</option><option value={180}>6 months</option>
-              <option value={365}>12 months</option><option value={730}>2 years</option>
-            </select>
-          </label>
-          <label className="check"><input type="checkbox" checked={gap} onChange={(e) => setGap(e.target.checked)} /> Grade-adjusted pace (hills)</label>
-          <label className="check"><input type="checkbox" checked={indoor} onChange={(e) => setIndoor(e.target.checked)} /> Include treadmill runs</label>
-          <label className="check"><input type="checkbox" checked={trail && gap} disabled={!gap} onChange={(e) => setTrail(e.target.checked)} /> Include trail runs (needs grade adjustment)</label>
-        </div>
-        <span className="muted">
-          Grade-adjusted pace converts hilly running into the flat running that would cost the same energy, so trail and hilly efforts can be compared with road efforts
-          (<Cite id="minetti2002" />). Treadmill runs are used as recorded. Open "How grade adjustment works" below to see the formula.
-        </span>
-      </section>
 
       <div className="tiles">
         {data.targets.map((x) => (
@@ -137,148 +120,159 @@ export default function Predict({ goSettings }: { goSettings: () => void }) {
         ))}
       </div>
 
+      <details className="settingsbar">
+        <summary><span className="muted">Based on: {summary}</span> <span className="link">change</span></summary>
+        <div className="row" style={{ marginTop: 8 }}>
+          <label>Use efforts from the last
+            <select value={windowDays} onChange={(e) => setWindowDays(Number(e.target.value))}>
+              <option value={90}>3 months</option><option value={180}>6 months</option>
+              <option value={365}>12 months</option><option value={730}>2 years</option>
+            </select>
+          </label>
+          <label className="check"><input type="checkbox" checked={gap} onChange={(e) => setGap(e.target.checked)} /> Grade-adjusted pace (hills)</label>
+          <label className="check"><input type="checkbox" checked={indoor} onChange={(e) => setIndoor(e.target.checked)} /> Include treadmill runs</label>
+          <label className="check"><input type="checkbox" checked={trail && gap} disabled={!gap} onChange={(e) => setTrail(e.target.checked)} /> Include trail runs (needs grade adjustment)</label>
+        </div>
+      </details>
+
       {target && (
-        <>
-          <section className="card wide">
-            <h3 style={{ margin: 0 }}>How the {target.label} number was made</h3>
-            {target.headline ? (
-              <>
-                <p style={{ margin: 0 }}>{target.headline.how}</p>
-                {target.support && <p className="muted" style={{ margin: 0 }}>{target.support.text} <em>{target.support.rule}</em></p>}
-              </>
-            ) : (
-              <p style={{ margin: 0 }}>{target.notes[0] ?? "None of the methods has enough data yet. See the method list below for what each one needs."}</p>
-            )}
-          </section>
+        <section className="card wide">
+          <div className="row between" style={{ alignItems: "baseline" }}>
+            <h3 style={{ margin: 0 }}>{target.label}</h3>
+            {target.headline && <span>{t(target.headline.middle_s)} <span className="muted">likely range {t(target.headline.low_s)} – {t(target.headline.high_s)}</span></span>}
+          </div>
+          <p style={{ margin: 0 }}>
+            {target.headline
+              ? `The middle of ${target.headline.n_methods} methods. ${target.support ? (target.support.level === "good" ? "Your recent efforts are close to this distance, so it is well supported." : target.support.level === "extrapolated" ? "This distance is well beyond your recent efforts, so treat it as a stretch." : "This distance is far beyond your recent efforts, so treat it as a rough guide.") : ""}`
+              : target.notes[0] ?? "Not enough data yet. Open the math to see what each method needs."}
+          </p>
 
-          <section className="card wide">
-            <h3 style={{ margin: 0 }}>Step 1: the efforts it starts from</h3>
-            <span className="muted">
-              For each run, the app finds the fastest stretch of each distance (a sliding window over your per-second distance, so it can sit inside a longer run). The fastest one in your chosen period is used. Turn any effort off to see the prediction change.
-            </span>
-            {data.efforts.length === 0 && <p className="muted">No best efforts yet. They appear after a sync once your runs have been analysed.</p>}
-            <details className="method">
-              <summary><span className="mname">How grade adjustment works</span><Cite id={data.gap_model.citation} /></summary>
-              <pre className="math">{data.gap_model.steps.join("\n")}</pre>
-              <div className="tablewrap"><table>
-                <thead><tr><th>Slope</th><th className="num">Cost (J/kg/m)</th><th className="num">Ratio to flat</th></tr></thead>
-                <tbody>{data.gap_model.table.map((r) => <tr key={r.grade_pct}><td>{r.grade_pct > 0 ? "+" : ""}{r.grade_pct.toFixed(0)}%</td><td className="num">{r.cost_j_per_kg_m.toFixed(2)}</td><td className="num">{r.ratio.toFixed(2)}x</td></tr>)}</tbody>
-              </table></div>
-              <p className="warnline">{data.gap_model.limits}</p>
-            </details>
-            <div className="tablewrap">
-              <table>
-                <thead><tr><th>Distance</th><th>Time</th><th className="num">Pace</th><th>Date</th><th className="hide-sm">Run</th><th></th></tr></thead>
-                <tbody>
-                  {efforts.map((e) => (
-                    <tr key={`${e.activity_id}-${e.distance_m}`} className={e.used ? "" : "dim"}>
-                      <td className="nowrap">{dist(e.distance_m)}</td>
-                      <td className="nowrap"><a href={`#/activity/${e.activity_id}`}>{t(e.time_s)}</a></td>
-                      <td className="num nowrap">{pace(e.pace_s_per_km)}</td>
-                      <td className="nowrap">{new Date(e.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" })}</td>
-                      <td className="hide-sm" title={e.adjustment}>{[...e.flags, ...e.not_used_because].join("; ") || "used"}{e.adjustment ? " – " + e.adjustment : ""}</td>
-                      <td><button className="link" onClick={() => toggle(e)}>{e.not_used_because.includes("excluded by you") ? "include" : e.used ? "leave out" : ""}</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="row">
-              <button onClick={() => setShowAll(!showAll)}>{showAll ? "Show only the 4 fastest per distance" : "Show all efforts"}</button>
-            </div>
-          </section>
+          <details>
+            <summary>Show the math</summary>
+            <div className="stack" style={{ marginTop: 10 }}>
+              {target.headline && <p className="muted" style={{ margin: 0 }}>{target.headline.how}</p>}
+              {target.support && <p className="muted" style={{ margin: 0 }}>{target.support.text} <em>{target.support.rule}</em></p>}
 
-          <section className="card wide">
-            <h3 style={{ margin: 0 }}>Step 2: the methods, with their working</h3>
-            {target.methods.map((m) => (
-              <details key={m.id} className="method">
-                <summary>
-                  <span className="mname">{m.name}</span>
-                  <span className="mtime">{m.time_s ? t(m.time_s) : "–"}</span>
-                  <span className={`badge ${STATUS[m.status][1]}`}>{STATUS[m.status][0]}</span>
-                </summary>
-                {m.note && <p className="muted">{m.note}</p>}
-                <pre className="math">{m.steps.join("\n")}</pre>
-                {m.warnings.map((w) => <p key={w} className="warnline">{w}</p>)}
-                {m.by_source && m.by_source.length > 1 && (
-                  <p className="muted">From each of your efforts separately: {m.by_source.map((b) => `${dist(b.from.distance_m)} ${t(b.from.time_s)} → ${t(b.time_s)}`).join("; ")}.</p>
-                )}
-                <p className="muted">Source: <Cite id={m.citation} /></p>
-              </details>
-            ))}
-          </section>
-
-          <section className="card wide">
-            <h3 style={{ margin: 0 }}>Step 3: how much to trust it</h3>
-            <p style={{ margin: 0 }}>{target.backtest.how}</p>
-            {Object.keys(target.backtest.summary).length === 0 ? (
-              <p className="muted">Not enough history for a check yet: it needs earlier efforts at other distances before each of your fastest {target.label}s ({target.backtest.n_anchors} such efforts found).</p>
-            ) : (
-              <div className="tablewrap">
-                <table>
-                  <thead><tr><th>Method</th><th className="num">Checks</th><th className="num">Typical error</th><th className="num hide-sm">Middle half of errors</th><th className="num">Within 5%</th></tr></thead>
-                  <tbody>
-                    {Object.entries(target.backtest.summary).map(([id, s]) => (
-                      <tr key={id}>
-                        <td>{METHOD_LABEL[id] ?? id}</td><td className="num">{s.n}</td>
-                        <td className="num">{s.median_error_pct > 0 ? "+" : ""}{s.median_error_pct.toFixed(1)}%</td>
-                        <td className="num hide-sm">{s.p25.toFixed(1)}% to {s.p75.toFixed(1)}%</td>
-                        <td className="num">{Math.round(s.within_5pct * 100)}%</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            {target.backtest.races.length > 0 && (
-              <>
-                <h4 style={{ margin: "8px 0 0" }}>Your marked races at this distance</h4>
-                <div className="tablewrap"><table>
-                  <thead><tr><th>Race</th><th className="num">Actual</th><th className="num">Riegel 1.06</th><th className="num hide-sm">Your fit</th><th className="num">VDOT</th></tr></thead>
-                  <tbody>{target.backtest.races.map((r) => (
-                    <tr key={r.activity_id}>
-                      <td className="nowrap"><a href={`#/activity/${r.activity_id}`}>{r.on}</a></td><td className="num">{t(r.actual_s)}</td>
-                      {["riegel_106", "riegel_fit", "vdot"].map((id) => (
-                        <td key={id} className={`num ${id === "riegel_fit" ? "hide-sm" : ""}`}>{r.predictions[id] ? `${t(r.predictions[id].time_s)} (${r.predictions[id].error_pct > 0 ? "+" : ""}${r.predictions[id].error_pct.toFixed(1)}%)` : "–"}</td>
+              <details className="method">
+                <summary><span className="mname">1. The efforts it starts from</span><span className="muted">{efforts.filter((e) => e.used).length} used</span></summary>
+                <p className="muted">For each run, the app finds your fastest stretch of each distance, even inside a longer run, and uses the fastest in your chosen period. Leave any effort out to see the prediction change.</p>
+                <details className="method">
+                  <summary><span className="mname">How grade adjustment works</span><Cite id={data.gap_model.citation} /></summary>
+                  <pre className="math">{data.gap_model.steps.join("\n")}</pre>
+                  <div className="tablewrap"><table>
+                    <thead><tr><th>Slope</th><th className="num">Cost (J/kg/m)</th><th className="num">Ratio to flat</th></tr></thead>
+                    <tbody>{data.gap_model.table.map((r) => <tr key={r.grade_pct}><td>{r.grade_pct > 0 ? "+" : ""}{r.grade_pct.toFixed(0)}%</td><td className="num">{r.cost_j_per_kg_m.toFixed(2)}</td><td className="num">{r.ratio.toFixed(2)}x</td></tr>)}</tbody>
+                  </table></div>
+                  <p className="warnline">{data.gap_model.limits}</p>
+                </details>
+                {data.efforts.length === 0 && <p className="muted">No best efforts yet. They appear after a sync once your runs have been analysed.</p>}
+                <div className="tablewrap">
+                  <table>
+                    <thead><tr><th>Distance</th><th>Time</th><th className="num">Pace</th><th>Date</th><th className="hide-sm">Run</th><th></th></tr></thead>
+                    <tbody>
+                      {efforts.map((e) => (
+                        <tr key={`${e.activity_id}-${e.distance_m}`} className={e.used ? "" : "dim"}>
+                          <td className="nowrap">{dist(e.distance_m)}</td>
+                          <td className="nowrap"><a href={`#/activity/${e.activity_id}`}>{t(e.time_s)}</a></td>
+                          <td className="num nowrap">{pace(e.pace_s_per_km)}</td>
+                          <td className="nowrap">{new Date(e.date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "2-digit" })}</td>
+                          <td className="hide-sm" title={e.adjustment}>{[...e.flags, ...e.not_used_because].join("; ") || "used"}{e.adjustment ? " – " + e.adjustment : ""}</td>
+                          <td><button className="link" onClick={() => toggle(e)}>{e.not_used_because.includes("excluded by you") ? "include" : e.used ? "leave out" : ""}</button></td>
+                        </tr>
                       ))}
-                    </tr>
-                  ))}</tbody>
-                </table></div>
-                <span className="muted">Predicted from only the efforts in the 90 days before each race. Mark more races on their activity page.</span>
-              </>
-            )}
-            {target.methods.find((m) => m.interval_s) && (() => {
-              const m = target.methods.find((x) => x.interval_s)!;
-              return <p className="muted" style={{ margin: 0 }}>The fitted-exponent method also gives a 95% prediction interval of {t(m.interval_s![0])} to {t(m.interval_s![1])}: with few efforts this is wide, and that is the honest size of the uncertainty.</p>;
-            })()}
-          </section>
+                    </tbody>
+                  </table>
+                </div>
+                <div className="row"><button onClick={() => setShowAll(!showAll)}>{showAll ? "Show only the 4 fastest per distance" : "Show all efforts"}</button></div>
+              </details>
 
-          {(target.key === "half" || target.key === "marathon") && (
-            <section className="card wide">
-              <h3 style={{ margin: 0 }}>Your recent training behind this</h3>
-              <p style={{ margin: 0 }}>Last {data.context.weeks} weeks: <strong>{data.context.weekly_km.toFixed(0)} km per week</strong> on average across {data.context.runs} runs, longest run <strong>{data.context.longest_run_km.toFixed(1)} km</strong>.</p>
-              <span className="muted">{data.context.text}</span>
-            </section>
-          )}
-        </>
+              <details className="method">
+                <summary><span className="mname">2. The methods</span><span className="muted">{target.methods.filter((m) => m.status === "ok" || m.status === "extrapolated").length} counted</span></summary>
+                {target.methods.map((m) => (
+                  <details key={m.id} className="method">
+                    <summary>
+                      <span className="mname">{m.name}</span>
+                      <span className="mtime">{m.time_s ? t(m.time_s) : "–"}</span>
+                      <span className={`badge ${STATUS[m.status][1]}`}>{STATUS[m.status][0]}</span>
+                    </summary>
+                    {m.note && <p className="muted">{m.note}</p>}
+                    <pre className="math">{m.steps.join("\n")}</pre>
+                    {m.warnings.map((w) => <p key={w} className="warnline">{w}</p>)}
+                    {m.by_source && m.by_source.length > 1 && (
+                      <p className="muted">From each of your efforts separately: {m.by_source.map((b) => `${dist(b.from.distance_m)} ${t(b.from.time_s)} → ${t(b.time_s)}`).join("; ")}.</p>
+                    )}
+                    <p className="muted">Source: <Cite id={m.citation} /></p>
+                  </details>
+                ))}
+              </details>
+
+              <details className="method">
+                <summary><span className="mname">3. How much to trust it</span>
+                  <span className="muted">{Object.keys(target.backtest.summary).length ? "checked against your history" : "not enough history to check yet"}</span></summary>
+                <p style={{ margin: 0 }}>{target.backtest.how}</p>
+                {Object.keys(target.backtest.summary).length === 0 ? (
+                  <p className="muted">It needs earlier efforts at other distances before each of your fastest {target.label}s ({target.backtest.n_anchors} such efforts found).</p>
+                ) : (
+                  <div className="tablewrap">
+                    <table>
+                      <thead><tr><th>Method</th><th className="num">Checks</th><th className="num">Typical error</th><th className="num hide-sm">Middle half of errors</th><th className="num">Within 5%</th></tr></thead>
+                      <tbody>
+                        {Object.entries(target.backtest.summary).map(([id, s]) => (
+                          <tr key={id}>
+                            <td>{METHOD_LABEL[id] ?? id}</td><td className="num">{s.n}</td>
+                            <td className="num">{s.median_error_pct > 0 ? "+" : ""}{s.median_error_pct.toFixed(1)}%</td>
+                            <td className="num hide-sm">{s.p25.toFixed(1)}% to {s.p75.toFixed(1)}%</td>
+                            <td className="num">{Math.round(s.within_5pct * 100)}%</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {target.backtest.races.length > 0 && (
+                  <>
+                    <h4 style={{ margin: "8px 0 0" }}>Your marked races at this distance</h4>
+                    <div className="tablewrap"><table>
+                      <thead><tr><th>Race</th><th className="num">Actual</th><th className="num">Riegel 1.06</th><th className="num hide-sm">Your fit</th><th className="num">VDOT</th></tr></thead>
+                      <tbody>{target.backtest.races.map((r) => (
+                        <tr key={r.activity_id}>
+                          <td className="nowrap"><a href={`#/activity/${r.activity_id}`}>{r.on}</a></td><td className="num">{t(r.actual_s)}</td>
+                          {["riegel_106", "riegel_fit", "vdot"].map((id) => (
+                            <td key={id} className={`num ${id === "riegel_fit" ? "hide-sm" : ""}`}>{r.predictions[id] ? `${t(r.predictions[id].time_s)} (${r.predictions[id].error_pct > 0 ? "+" : ""}${r.predictions[id].error_pct.toFixed(1)}%)` : "–"}</td>
+                          ))}
+                        </tr>
+                      ))}</tbody>
+                    </table></div>
+                  </>
+                )}
+                {target.methods.find((m) => m.interval_s) && (() => {
+                  const m = target.methods.find((x) => x.interval_s)!;
+                  return <p className="muted" style={{ margin: 0 }}>The fitted-exponent method also gives a 95% prediction interval of {t(m.interval_s![0])} to {t(m.interval_s![1])}; with few efforts it is wide, and that is the honest size of the uncertainty.</p>;
+                })()}
+                {(target.key === "half" || target.key === "marathon") && (
+                  <p style={{ margin: 0 }}>Your recent training: <strong>{data.context.weekly_km.toFixed(0)} km a week</strong> on average over {data.context.weeks} weeks across {data.context.runs} runs, longest run <strong>{data.context.longest_run_km.toFixed(1)} km</strong>. {data.context.text}</p>
+                )}
+              </details>
+            </div>
+          </details>
+        </section>
       )}
 
       <Vo2max />
 
-      <section className="card wide">
-        <h3 style={{ margin: 0 }}>Sources and limits</h3>
-        <ul className="sources">
+      <details className="card wide">
+        <summary>Sources and limits</summary>
+        <ul className="sources" style={{ marginTop: 10 }}>
           {data.citations.map((c) => (
             <li key={c.id}><Cite id={c.id} /> {c.how_used} <em className="muted">({c.verified_label})</em></li>
           ))}
         </ul>
-        <span className="muted">Every source, with how well it was checked and its limits, is on the <a href="#/references">references page</a>.</span>
-        {data.caveats.map((c) => <p key={c} className="muted" style={{ margin: 0 }}>{c}</p>)}
-        <div className="row">
+        {data.caveats.map((c) => <p key={c} className="muted" style={{ margin: "6px 0 0" }}>{c}</p>)}
+        <div className="row" style={{ marginTop: 8 }}>
           <button onClick={download}>Download the full calculation (JSON)</button>
-          <button className="link" onClick={goSettings}>Max heart rate and other settings</button>
+          <a href="#/references">All sources and how well each was checked</a>
         </div>
-      </section>
+      </details>
     </div>
   );
 }

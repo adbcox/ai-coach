@@ -39,7 +39,7 @@ Daniels J, Gilbert J (1979). Oxygen Power: Performance Tables for Distance Runne
 - Checked: **Known from secondary sources (summaries, vendor pages); the original was not read**. Equation constants confirmed from secondary sources (calculator and coaching pages). The app's implementation reproduces the widely quoted value (a 20:00 5K gives a VDOT of 49.8); the book itself was not read.
 - Used for: VDOT race-time prediction; VDOT as a race-performance fitness index (VO2max section)
 - How the app uses it: oxygen cost = -4.60 + 0.182258 v + 0.000104 v^2 (v in m/min); fraction of VO2max held = 0.8 + 0.1894393 e^(-0.012778 t) + 0.2989558 e^(-0.1932605 t) (t in minutes); VDOT = cost / fraction. Solved for the target distance.
-- Limits: VDOT is a performance score, not a measured VO2max. It assumes the athlete has the endurance base for the distance being predicted.
+- Limits: A 1979 model from competitive runners' performances. VDOT is a performance score, not a measured VO2max: it mixes aerobic capacity with running economy, and one 2020 study of experienced marathoners found it related to a running-economy measure but not to laboratory VO2max. It assumes the endurance base for the distance being predicted.
 
 ## Poole et al. 2016
 
@@ -100,6 +100,46 @@ See source (2025). Performance prediction equation for the Valencia Marathon bas
 - Used for: Context for half-to-marathon prediction and for showing several methods side by side
 - How the app uses it: Not a formula used by the app; informs the choice to show methods together instead of picking one.
 - Limits: One race, one population.
+
+## Frontiers 2024: ACSM equations
+
+See source (2024). Article on the accuracy of the ACSM metabolic equations for walking and running, proposing the HYPAC system (Frontiers in Sports and Active Living, DOI 10.3389/fspor.2024.1522214; exact title not yet verified). Frontiers in Sports and Active Living (2024/2025). doi:10.3389/fspor.2024.1522214
+
+- Link: <https://www.frontiersin.org/journals/sports-and-active-living/articles/10.3389/fspor.2024.1522214/full>
+- Checked: **Known from secondary sources (summaries, vendor pages); the original was not read**. Search summaries only (the publisher's site cannot be reached from the build environment): the ACSM walking and running equations disagree at 8 km/h and often lack accuracy; the proposed system reported a relative error of -0.03 against measured VO2.
+- Used for: Candidate for a more accurate oxygen-cost-of-running equation (NOT used in any calculation yet)
+- How the app uses it: Not used. It is the reason the app does not build a VO2max method on the standard ACSM running equation.
+- Limits: Not read in full; the claims above come from summaries.
+
+## ACSM equation in athletes (Hippokratia)
+
+See source. Indirect estimation of VO2max in athletes by ACSM's equation: valid or not?. Hippokratia.
+
+- Link: <https://www.hippokratia.gr/?p=1728>
+- Checked: **Known from secondary sources (summaries, vendor pages); the original was not read**. Search summary only: VO2max calculated with the ACSM running equation was 14.6% higher than measured in athletes aged 18-37 on the Bruce protocol.
+- Used for: Why VO2max from the standard ACSM running-cost equation is treated with suspicion (NOT used in any calculation)
+- How the app uses it: Not used; evidence for caution.
+- Limits: Summary only; one protocol, one athlete group.
+
+## eLife 2023: submaximal VO2max models
+
+See source (2023). VO2max prediction based on submaximal cardiorespiratory relationships and body composition in male runners and cyclists: a population study. eLife (2023).
+
+- Link: <https://elifesciences.org/articles/86291>
+- Checked: **Known from secondary sources (summaries, vendor pages); the original was not read**. Search summary only (publisher site unreachable from the build environment): regression models for runners and cyclists with internal validation.
+- Used for: Modern evidence on submaximal prediction (NOT used: it needs laboratory-grade breathing data a watch does not record)
+- How the app uses it: Not used.
+- Limits: Males; needs measured cardiorespiratory variables and body composition.
+
+## Firstbeat white paper 2017
+
+Firstbeat Technologies (2017). Automated fitness level (VO2max) estimation with heart rate and speed data. Company white paper (not peer reviewed).
+
+- Link: <https://assets.firstbeat.com/firstbeat/uploads/2017/06/white_paper_VO2max_30.6.2017.pdf>
+- Checked: **Known from secondary sources (summaries, vendor pages); the original was not read**. Known from search summaries: the approach behind Garmin's VO2max (heart rate and speed during runs); the company reports about 5% error in 79 runners. Company-sourced accuracy claims have not been independently verified.
+- Used for: Context for how your watch's own VO2max number is produced (NOT used in any calculation)
+- How the app uses it: Not used. Explains why the watch's value and this app's estimates can differ.
+- Limits: Manufacturer document.
 
 ## Fetch Everyone analysis
 
