@@ -10,7 +10,7 @@ import time
 import uuid
 from collections import defaultdict
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
@@ -69,6 +69,7 @@ class SmbConfig(BaseModel):
 
 
 SPORT_GROUPS = ["All", "Running", "Cycling", "Hiking", "Other"]
+UNIT_OPTIONS = {"distance": ["km", "mi"], "elevation": ["m", "ft"], "weight": ["kg", "lb"], "height": ["cm", "ftin"]}
 
 
 class Preferences(BaseModel):
@@ -78,6 +79,12 @@ class Preferences(BaseModel):
     watch_vo2max: float | None = Field(default=None, ge=15, le=90)
     sex: str | None = None            # "female" | "male"; null clears
     weight_kg: float | None = Field(default=None, ge=25, le=300)  # null clears (use Garmin's)
+    height_cm: float | None = Field(default=None, ge=100, le=250)
+    birthday: str | None = None       # ISO date YYYY-MM-DD; null clears
+    units_distance: str | None = None   # km | mi (also sets pace and speed)
+    units_elevation: str | None = None  # m | ft
+    units_weight: str | None = None     # kg | lb
+    units_height: str | None = None     # cm | ftin
 
 
 class BackupRequest(BaseModel):
@@ -410,11 +417,17 @@ def create_app(
 
     def profile_fields(conn, pref) -> dict:
         garmin = bodymod.latest_garmin_weight(conn)
+        birthday = pref("pref_birthday")
         custom = float(pref("pref_weight_kg")) if pref("pref_weight_kg") else None
         sex = pref("pref_sex")
         year = int(pref("pref_birth_year")) if pref("pref_birth_year") else None
         return {"sex": sex if sex in ("female", "male") else None,
-                "age": bodymod.age_from_birth_year(year),
+                "birthday": birthday,
+                "age": bodymod.age_from_birthday(birthday) if birthday else bodymod.age_from_birth_year(year),
+                "height_cm": float(pref("pref_height_cm")) if pref("pref_height_cm") else None,
+                "units": {k: (pref(f"pref_units_{k}") if pref(f"pref_units_{k}") in opts else opts[0])
+                          for k, opts in UNIT_OPTIONS.items()},
+                "unit_options": UNIT_OPTIONS,
                 "weight_kg": custom if custom else (garmin["kg"] if garmin else None),
                 "weight_source": "custom" if custom else ("garmin" if garmin else None),
                 "weight_garmin_kg": garmin["kg"] if garmin else None,
@@ -457,6 +470,32 @@ def create_app(
                              "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (body_.sex,))
             else:
                 raise HTTPException(400, "sex must be female or male (the value physiology formulas use), or blank.")
+        if "birthday" in fields:
+            if body_.birthday is None or body_.birthday == "":
+                conn.execute("DELETE FROM sync_state WHERE key IN ('pref_birthday','pref_birth_year')")
+            else:
+                try:
+                    bd = date.fromisoformat(body_.birthday)
+                except ValueError:
+                    raise HTTPException(400, "Enter your birthday as a date.") from None
+                if not (date(1920, 1, 1) <= bd < date.today()):
+                    raise HTTPException(400, "That birthday is outside a plausible range.")
+                for k, v in (("pref_birthday", bd.isoformat()), ("pref_birth_year", str(bd.year))):
+                    conn.execute("INSERT INTO sync_state (key, value) VALUES (?, ?) "
+                                 "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (k, v))
+        if "height_cm" in fields:
+            if body_.height_cm is None:
+                conn.execute("DELETE FROM sync_state WHERE key='pref_height_cm'")
+            else:
+                conn.execute("INSERT INTO sync_state (key, value) VALUES ('pref_height_cm', ?) "
+                             "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (str(round(body_.height_cm, 1)),))
+        for unit_key, opts in UNIT_OPTIONS.items():
+            chosen = getattr(body_, f"units_{unit_key}")
+            if f"units_{unit_key}" in fields and chosen is not None:
+                if chosen not in opts:
+                    raise HTTPException(400, f"{unit_key} units must be one of {', '.join(opts)}.")
+                conn.execute("INSERT INTO sync_state (key, value) VALUES (?, ?) "
+                             "ON CONFLICT(key) DO UPDATE SET value=excluded.value", (f"pref_units_{unit_key}", chosen))
         if "weight_kg" in fields:
             if body_.weight_kg is None:
                 conn.execute("DELETE FROM sync_state WHERE key='pref_weight_kg'")

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, ActivityList, api } from "../api";
-import { duration, km, sportGroup, SportGroup } from "../lib/format";
+import { duration, km, sportGroup, SportGroup, unitDist } from "../lib/format";
 
 const PAGE = 100;
 const FILTERS: ("All" | SportGroup)[] = ["All", "Running", "Cycling", "Hiking", "Other"];
@@ -46,7 +46,7 @@ export default function Activities({ goSettings, open }: { goSettings: () => voi
       <table className="tbl-activities">
         <thead>
           <tr>
-            <th>Date</th><th className="hide-sm">Sport</th><th>Name</th><th className="num">km</th>
+            <th>Date</th><th className="hide-sm">Sport</th><th>Name</th><th className="num">{unitDist()}</th>
             <th className="num">Time</th><th className="num hide-sm">Avg HR</th>
           </tr>
         </thead>

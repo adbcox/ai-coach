@@ -1,3 +1,5 @@
+import { paceFromSecPerKm, unitDist } from "../lib/format";
+import { distFactor, getUnits, KM_PER_MI, useUnits } from "../lib/units";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import Cite from "../components/Cite";
@@ -33,8 +35,11 @@ const t = (s: number) => {
   const r = Math.round(s), h = Math.floor(r / 3600), m = Math.floor((r % 3600) / 60), sec = r % 60;
   return h ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` : `${m}:${String(sec).padStart(2, "0")}`;
 };
-const pace = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}/km`;
-const dist = (m: number) => (Math.abs(m - 21097.5) < 1 ? "21.0975 km" : Math.abs(m - 1609.344) < 1 ? "1 mile" : `${m / 1000} km`);
+const pace = (s: number) => `${paceFromSecPerKm(s)}/${unitDist()}`;
+const dist = (m: number) => {
+  if (getUnits().distance === "mi") return Math.abs(m - 1609.344) < 1 ? "1 mile" : `${(m / KM_PER_MI / 1000).toFixed(2)} mi`;
+  return Math.abs(m - 21097.5) < 1 ? "21.0975 km" : Math.abs(m - 1609.344) < 1 ? "1 mile" : `${m / 1000} km`;
+};
 const STATUS: Record<string, [string, string]> = {
   ok: ["counted", "ok"], extrapolated: ["counted, extrapolated", "warn"],
   reference_only: ["reference only, not counted", "muted"], not_enough_data: ["not enough data", "muted"],
@@ -42,6 +47,7 @@ const STATUS: Record<string, [string, string]> = {
 const METHOD_LABEL: Record<string, string> = { riegel_106: "Riegel k = 1.06", riegel_fit: "Your fitted exponent", vdot: "VDOT" };
 
 export default function Predict(_props: { goSettings: () => void }) {
+  useUnits();
   const [windowDays, setWindowDays] = useState(365);
   const [indoor, setIndoor] = useState(true);
   const [trail, setTrail] = useState(true);
@@ -250,7 +256,7 @@ export default function Predict(_props: { goSettings: () => void }) {
                   return <p className="muted" style={{ margin: 0 }}>The fitted-exponent method also gives a 95% prediction interval of {t(m.interval_s![0])} to {t(m.interval_s![1])}; with few efforts it is wide, and that is the honest size of the uncertainty.</p>;
                 })()}
                 {(target.key === "half" || target.key === "marathon") && (
-                  <p style={{ margin: 0 }}>Your recent training: <strong>{data.context.weekly_km.toFixed(0)} km a week</strong> on average over {data.context.weeks} weeks across {data.context.runs} runs, longest run <strong>{data.context.longest_run_km.toFixed(1)} km</strong>. {data.context.text}</p>
+                  <p style={{ margin: 0 }}>Your recent training: <strong>{(data.context.weekly_km * distFactor()).toFixed(0)} {unitDist()} a week</strong> on average over {data.context.weeks} weeks across {data.context.runs} runs, longest run <strong>{data.context.longest_run_km.toFixed(1)} km</strong>. {data.context.text}</p>
                 )}
               </details>
             </div>

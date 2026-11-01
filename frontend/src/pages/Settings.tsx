@@ -1,3 +1,4 @@
+import { cmToFtIn, displayToKg, ftInToCm, kgToDisplay, setUnits, Units } from "../lib/units";
 import { FormEvent, useEffect, useState } from "react";
 import { api, GarminStatus } from "../api";
 import Backups from "../components/Backups";
@@ -8,7 +9,7 @@ import { intervalLabel, useSync } from "../lib/useSync";
 const KEY_PAGE = "https://connect.garmin.com/app/settings/personalApiToken";
 const DOCS = "https://developer.garmin.com/gc-developer-program/personal/personal-api/";
 
-type PrefData = { default_sport: string; sport_options: string[]; max_hr: number | null; max_hr_source: string | null; max_hr_auto: number | null; birth_year: number | null; age: number | null; sex: string | null; weight_kg: number | null; weight_source: string | null; weight_garmin_kg: number | null; weight_garmin_date: string | null; hr_zones: { zone: number; low: number; high: number }[] };
+type PrefData = { default_sport: string; sport_options: string[]; max_hr: number | null; max_hr_source: string | null; max_hr_auto: number | null; birth_year: number | null; birthday: string | null; height_cm: number | null; units: Units; unit_options: Record<string, string[]>; age: number | null; sex: string | null; weight_kg: number | null; weight_source: string | null; weight_garmin_kg: number | null; weight_garmin_date: string | null; hr_zones: { zone: number; low: number; high: number }[] };
 
 function Preferences() {
   const [sport, setSport] = useState("");
@@ -18,18 +19,28 @@ function Preferences() {
   const [auto, setAuto] = useState<number | null>(null);
   const [zones, setZones] = useState<{ zone: number; low: number; high: number }[]>([]);
   const [hrError, setHrError] = useState("");
-  const [birthYear, setBirthYear] = useState("");
+  const [birthday, setBirthday] = useState("");
+  const [heightCm, setHeightCm] = useState("");
+  const [heightFt, setHeightFt] = useState("");
+  const [heightIn, setHeightIn] = useState("");
   const [sex, setSex] = useState("");
   const [weight, setWeight] = useState("");
   const [prof, setProf] = useState<PrefData | null>(null);
   const apply = (p: PrefData) => {
     setSport(p.default_sport); setOptions(p.sport_options); setAuto(p.max_hr_auto);
     setMaxHr(p.max_hr_source === "custom" && p.max_hr ? String(p.max_hr) : ""); setZones(p.hr_zones);
-    setBirthYear(p.birth_year ? String(p.birth_year) : "");
+    setBirthday(p.birthday ?? "");
+    setUnits(p.units);
+    if (p.height_cm) { const fi = cmToFtIn(p.height_cm); setHeightCm(String(p.height_cm)); setHeightFt(String(fi.ft)); setHeightIn(String(fi.inch)); }
+    else { setHeightCm(""); setHeightFt(""); setHeightIn(""); }
     setSex(p.sex ?? ""); setProf(p);
-    setWeight(p.weight_source === "custom" && p.weight_kg ? String(p.weight_kg) : "");
+    setWeight(p.weight_source === "custom" && p.weight_kg ? String(Math.round(kgToDisplay(p.weight_kg) * 10) / 10) : "");
   };
   useEffect(() => { api<PrefData>("/preferences").then(apply).catch(() => undefined); }, []);
+  async function saveHeightFtIn() {
+    if (!heightFt.trim() && !heightIn.trim()) { apply(await api<PrefData>("/preferences", "PUT", { height_cm: null })); return; }
+    apply(await api<PrefData>("/preferences", "PUT", { height_cm: ftInToCm(Number(heightFt || 0), Number(heightIn || 0)) }));
+  }
   async function saveMaxHr() {
     setHrError("");
     try { apply(await api<PrefData>("/preferences", "PUT", { max_hr: maxHr.trim() ? Number(maxHr) : null })); }
@@ -75,21 +86,44 @@ function Preferences() {
           <option value="">Not set</option><option value="female">Female</option><option value="male">Male</option>
         </select>
       </label>
-      <label>Year of birth{prof?.age != null ? ` (age about ${prof.age})` : ""}
-        <input type="number" min={1920} max={2020} value={birthYear} onChange={(e) => setBirthYear(e.target.value)}
-               onBlur={async () => apply(await api<PrefData>("/preferences", "PUT", { birth_year: birthYear.trim() ? Number(birthYear) : null }))}
-               placeholder="e.g. 1990" style={{ maxWidth: 200 }} />
+      <label>Birthday{prof?.age != null ? ` (age ${prof.age})` : ""}
+        <input type="date" min="1920-01-01" value={birthday} onChange={(e) => setBirthday(e.target.value)}
+               onBlur={async () => apply(await api<PrefData>("/preferences", "PUT", { birthday: birthday || null }))}
+               style={{ maxWidth: 200 }} />
       </label>
-      <label>Weight (kg)
-        <input type="number" min={25} max={300} step="0.1" value={weight} onChange={(e) => setWeight(e.target.value)}
-               onBlur={async () => apply(await api<PrefData>("/preferences", "PUT", { weight_kg: weight.trim() ? Number(weight) : null }))}
-               placeholder={prof?.weight_garmin_kg ? `from Garmin (${prof.weight_garmin_kg})` : "no weight from Garmin yet"} style={{ maxWidth: 200 }} />
+      <label>Weight ({prof?.units.weight ?? "kg"})
+        <input type="number" min={prof?.units.weight === "lb" ? 55 : 25} max={prof?.units.weight === "lb" ? 660 : 300} step="0.1" value={weight} onChange={(e) => setWeight(e.target.value)}
+               onBlur={async () => apply(await api<PrefData>("/preferences", "PUT", { weight_kg: weight.trim() ? Math.round(displayToKg(Number(weight)) * 100) / 100 : null }))}
+               placeholder={prof?.weight_garmin_kg ? `from Garmin (${Math.round(kgToDisplay(prof.weight_garmin_kg) * 10) / 10})` : "no weight from Garmin yet"} style={{ maxWidth: 200 }} />
       </label>
       <span className="muted">
         {prof?.weight_source === "custom" && `Using your typed value. `}
-        {prof?.weight_garmin_kg ? `Garmin's latest weight: ${prof.weight_garmin_kg} kg (${prof.weight_garmin_date}). ` : "No weight found in your synced Garmin data (record one on a Garmin scale or in Garmin Connect and sync). "}
+        {prof?.weight_garmin_kg ? `Garmin's latest weight: ${Math.round(kgToDisplay(prof.weight_garmin_kg) * 10) / 10} ${prof.units.weight} (${prof.weight_garmin_date}). ` : "No weight found in your synced Garmin data (record one on a Garmin scale or in Garmin Connect and sync). "}
         {prof?.weight_source === "custom" ? "Clear the box to go back to Garmin's value." : "Type a value to override Garmin's."}
       </span>
+      <label>Height{prof?.units.height === "ftin" ? " (ft, in)" : " (cm)"}
+        {prof?.units.height === "ftin" ? (
+          <span className="row" style={{ gap: 8 }}
+                onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) saveHeightFtIn(); }}>
+            <input type="number" min={3} max={8} value={heightFt} onChange={(e) => setHeightFt(e.target.value)} placeholder="ft" style={{ maxWidth: 80 }} />
+            <input type="number" min={0} max={11} value={heightIn} onChange={(e) => setHeightIn(e.target.value)} placeholder="in" style={{ maxWidth: 80 }} />
+          </span>
+        ) : (
+          <input type="number" min={100} max={250} step="0.1" value={heightCm} onChange={(e) => setHeightCm(e.target.value)} style={{ maxWidth: 200 }}
+                 onBlur={async () => apply(await api<PrefData>("/preferences", "PUT", { height_cm: heightCm.trim() ? Number(heightCm) : null }))} />
+        )}
+      </label>
+      <h3 style={{ marginBottom: 0 }}>Units</h3>
+      <span className="muted">Display only. The working in "Show the math" stays metric so it matches the papers.</span>
+      {([["distance", "Distance, pace and speed", { km: "Kilometres", mi: "Miles" }], ["elevation", "Elevation", { m: "Metres", ft: "Feet" }],
+         ["weight", "Weight", { kg: "Kilograms", lb: "Pounds" }], ["height", "Height", { cm: "Centimetres", ftin: "Feet and inches" }]] as [string, string, Record<string, string>][]).map(([key, label, opts]) => (
+        <label key={key}>{label}
+          <select value={prof?.units[key as keyof Units] ?? Object.keys(opts)[0]} style={{ maxWidth: 200 }}
+                  onChange={async (e) => apply(await api<PrefData>("/preferences", "PUT", { [`units_${key}`]: e.target.value }))}>
+            {Object.entries(opts).map(([v, name]) => <option key={v} value={v}>{name}</option>)}
+          </select>
+        </label>
+      ))}
       <details><summary className="muted">About the zones</summary><p className="muted">A common five-zone split of max heart rate (50/60/70/80/90%), which may differ from your Garmin's own boundaries. <Cite id="garmin_zones" /></p></details>
     </section>
   );

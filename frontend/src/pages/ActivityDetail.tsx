@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityDetail as Detail, api, SamplesData } from "../api";
 import LinkedCharts, { HrZone, ZONE_COLORS } from "../components/LinkedCharts";
 import RunMap from "../components/RunMap";
-import { duration, km, kmh, pace, sportGroup } from "../lib/format";
+import { duration, elevation, km, kmh, pace, sportGroup, unitDist, unitSpeed } from "../lib/format";
+import { useUnits } from "../lib/units";
 
 function ZoneBars({ summary }: { summary: Record<string, unknown> }) {
   const zones = [1, 2, 3, 4, 5].map((z) => num(summary[`hrTimeInZone_${z}`]) ?? 0);
@@ -27,6 +28,7 @@ function ZoneBars({ summary }: { summary: Record<string, unknown> }) {
 const num = (v: unknown): number | null => (typeof v === "number" && isFinite(v) ? v : null);
 
 export default function ActivityDetail({ id, back }: { id: number; back: () => void }) {
+  useUnits();
   const [detail, setDetail] = useState<Detail | null>(null);
   const [samples, setSamples] = useState<SamplesData | null>(null);
   const [hover, setHover] = useState<number | null>(null);
@@ -58,10 +60,10 @@ export default function ActivityDetail({ id, back }: { id: number; back: () => v
   const anaero = num(s["anaerobicTrainingEffect"]);
 
   const stats: [string, string][] = [
-    ["Distance", `${km(detail.distance_m)} km`],
+    ["Distance", `${km(detail.distance_m)} ${unitDist()}`],
     ["Time", duration(detail.duration_s)],
-    [running ? "Avg pace" : "Avg speed", running ? `${pace(avgSpeed)} /km` : `${kmh(avgSpeed)} km/h`],
-    ["Elevation gain", detail.elevation_gain_m != null ? `${Math.round(detail.elevation_gain_m)} m` : "–"],
+    [running ? "Avg pace" : "Avg speed", running ? `${pace(avgSpeed)} /${unitDist()}` : `${kmh(avgSpeed)} ${unitSpeed()}`],
+    ["Elevation gain", elevation(detail.elevation_gain_m)],
     ["Avg HR", detail.avg_hr ? `${Math.round(detail.avg_hr)} bpm` : "–"],
     ["Max HR", detail.max_hr ? `${Math.round(detail.max_hr)} bpm` : "–"],
   ];

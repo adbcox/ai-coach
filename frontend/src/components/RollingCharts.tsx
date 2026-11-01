@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Activity } from "../api";
-import { lastDays, localDay } from "../lib/format";
+import { lastDays, localDay, unitDist } from "../lib/format";
+import { distFactor, useUnits } from "../lib/units";
 import { useWidth } from "../lib/useWidth";
 
 const SPAN = 28; // days shown
@@ -84,15 +85,18 @@ function LineChart({ title, unit, points, color, sub }: {
 }
 
 export default function RollingCharts({ activities, noun }: { activities: Activity[]; noun: string }) {
+  const units = useUnits();
+  const unit = unitDist();
   const { avg, longest } = useMemo(() => {
+    const f = distFactor();
     const days = lastDays(SPAN + WINDOW - 1);
     const total = new Map(days.map((d) => [d, 0]));
     const best = new Map(days.map((d) => [d, 0]));
     for (const a of activities) {
       const d = localDay(a.start_time);
       if (!total.has(d) || !a.distance_m) continue;
-      total.set(d, total.get(d)! + a.distance_m / 1000);
-      best.set(d, Math.max(best.get(d)!, a.distance_m / 1000));
+      total.set(d, total.get(d)! + (a.distance_m / 1000) * f);
+      best.set(d, Math.max(best.get(d)!, (a.distance_m / 1000) * f));
     }
     const avg: Pt[] = [], longest: Pt[] = [];
     for (let i = WINDOW - 1; i < days.length; i++) {
@@ -106,20 +110,20 @@ export default function RollingCharts({ activities, noun }: { activities: Activi
       longest.push({ day: days[i], value: Math.max(...wide.map((d) => best.get(d)!)) });
     }
     return { avg, longest };
-  }, [activities]);
+  }, [activities, units]);
 
   return (
     <div className="grid2">
       <LineChart
         title="Weekly mileage (rolling 7 days)"
-        unit="km/week"
+        unit={`${unit}/week`}
         points={avg}
         color="var(--run)"
-        sub="Each point is the total distance of the 7 days ending that day (km per week), so you can see how mileage builds."
+        sub={`Each point is the total distance of the 7 days ending that day (${unit} per week), so you can see how mileage builds.`}
       />
       <LineChart
         title={`Rolling 7-day longest ${noun}`}
-        unit="km"
+        unit={unit}
         points={longest}
         color="var(--ride)"
         sub={`Each point is the longest single ${noun} in the 7 days ending that day. Until you have a ${noun} today, today looks back 8 days so last week\u2019s long ${noun} does not vanish early.`}

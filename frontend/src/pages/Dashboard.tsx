@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, ActivityList, api } from "../api";
 import MileageChart from "../components/MileageChart";
 import RollingCharts from "../components/RollingCharts";
-import { duration, km, lastDays, localDay, sportGroup, SportGroup } from "../lib/format";
+import { duration, km, lastDays, localDay, sportGroup, SportGroup, unitDist } from "../lib/format";
+import { distFactor } from "../lib/units";
 import { ago, useSync } from "../lib/useSync";
 
 const FILTERS: ("All" | SportGroup)[] = ["All", "Running", "Cycling", "Hiking", "Other"];
@@ -93,11 +94,11 @@ export default function Dashboard({ open, goSettings }: { open: (id: number) => 
       </div>
 
       <div className="tiles">
-        <Tile label="Last 7 days" value={`${km(stats.recent.dist, 1)} km`} sub={`${stats.recent.count} activities · ${duration(stats.recent.time)}`} />
-        <Tile label="Previous 7 days" value={`${km(stats.prior.dist, 1)} km`} sub={`${stats.prior.count} activities · ${duration(stats.prior.time)}`} />
+        <Tile label="Last 7 days" value={`${km(stats.recent.dist, 1)} ${unitDist()}`} sub={`${stats.recent.count} activities · ${duration(stats.recent.time)}`} />
+        <Tile label="Previous 7 days" value={`${km(stats.prior.dist, 1)} ${unitDist()}`} sub={`${stats.prior.count} activities · ${duration(stats.prior.time)}`} />
         <Tile
           label="Change"
-          value={`${delta >= 0 ? "+" : ""}${(delta / 1000).toFixed(1)} km`}
+          value={`${delta >= 0 ? "+" : ""}${((delta / 1000) * distFactor()).toFixed(1)} ${unitDist()}`}
           sub={stats.prior.dist > 0 ? `${Math.round((delta / stats.prior.dist) * 100)}% vs previous week` : "no previous week"}
         />
       </div>
@@ -126,7 +127,7 @@ export default function Dashboard({ open, goSettings }: { open: (id: number) => 
                 <tr key={a.id} className="click" onClick={() => open(a.id)}>
                   <td className="nowrap">{new Date(a.start_time).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</td>
                   <td className="ellip">{a.name ?? a.sport ?? "Activity"}</td>
-                  <td className="num">{km(a.distance_m)} km</td>
+                  <td className="num">{km(a.distance_m)} {unitDist()}</td>
                   <td className="num">{duration(a.duration_s)}</td>
                 </tr>
               ))}

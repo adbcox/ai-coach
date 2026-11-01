@@ -1,6 +1,7 @@
 import { Activity } from "../api";
 import { useWidth } from "../lib/useWidth";
-import { km, lastDays, localDay, sportGroup, SportGroup } from "../lib/format";
+import { lastDays, localDay, sportGroup, SportGroup, unitDist } from "../lib/format";
+import { distFactor, useUnits } from "../lib/units";
 
 const GROUPS: SportGroup[] = ["Running", "Cycling", "Hiking", "Other"];
 const COLORS: Record<SportGroup, string> = {
@@ -12,12 +13,14 @@ const COLORS: Record<SportGroup, string> = {
 
 export default function MileageChart({ activities, days = 14 }: { activities: Activity[]; days?: number }) {
   const [box, W] = useWidth(640);
+  useUnits();
+  const unit = unitDist();
   const labels = lastDays(days);
   const byDay = new Map<string, Record<SportGroup, number>>();
   for (const day of labels) byDay.set(day, { Running: 0, Cycling: 0, Hiking: 0, Other: 0 });
   for (const a of activities) {
     const bucket = byDay.get(localDay(a.start_time));
-    if (bucket && a.distance_m) bucket[sportGroup(a.sport)] += a.distance_m / 1000;
+    if (bucket && a.distance_m) bucket[sportGroup(a.sport)] += (a.distance_m / 1000) * distFactor();
   }
   const totals = labels.map((d) => GROUPS.reduce((n, g) => n + byDay.get(d)![g], 0));
   const rawMax = Math.max(5, ...totals);
@@ -49,7 +52,7 @@ export default function MileageChart({ activities, days = 14 }: { activities: Ac
             yBase -= h;
             return h > 0 ? (
               <rect key={g} x={padL + i * bw + 3} y={yBase} width={bw - 6} height={h} rx={2} fill={COLORS[g]}>
-                <title>{`${day} ${g}: ${byDay.get(day)![g].toFixed(1)} km`}</title>
+                <title>{`${day} ${g}: ${byDay.get(day)![g].toFixed(1)} ${unit}`}</title>
               </rect>
             ) : null;
           });
@@ -65,7 +68,7 @@ export default function MileageChart({ activities, days = 14 }: { activities: Ac
             </g>
           );
         })}
-        <text x={padL - 6} y={10} textAnchor="end" className="tick">km</text>
+        <text x={padL - 6} y={10} textAnchor="end" className="tick">{unit}</text>
       </svg>
       </div>
       <div className="legend">
@@ -74,7 +77,7 @@ export default function MileageChart({ activities, days = 14 }: { activities: Ac
             <i style={{ background: COLORS[g] }} /> {g}
           </span>
         ))}
-        <span className="muted">Total {km(totals.reduce((a, b) => a + b, 0) * 1000, 1)} km</span>
+        <span className="muted">Total {totals.reduce((a, b) => a + b, 0).toFixed(1)} {unit}</span>
       </div>
     </div>
   );

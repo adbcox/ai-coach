@@ -56,3 +56,29 @@ def test_garmin_weight_is_used_until_a_custom_value_is_set(authed):
     r = authed.put("/api/preferences", json={"weight_kg": 70}).json()
     assert r["weight_kg"] == 70 and r["weight_source"] == "custom" and r["weight_garmin_kg"] == 63.5
     assert authed.get("/api/weight").json()["history"] == [{"date": "2026-10-30", "kg": 63.5}]
+
+
+def test_birthday_gives_exact_age_and_feeds_max_hr(authed):
+    from datetime import date
+
+    from app import body
+    assert body.age_from_birthday("1990-06-15", date(2026, 6, 14)) == 35
+    assert body.age_from_birthday("1990-06-15", date(2026, 6, 15)) == 36
+    assert body.age_from_birthday("nonsense") is None
+    r = authed.put("/api/preferences", json={"birthday": "1990-06-15"}).json()
+    assert r["birthday"] == "1990-06-15" and r["birth_year"] == 1990 and r["age"] is not None
+    assert authed.get("/api/maxhr").json()["age"] == r["age"]
+    assert authed.put("/api/preferences", json={"birthday": "2999-01-01"}).status_code == 400
+    assert authed.put("/api/preferences", json={"birthday": "June 15"}).status_code == 400
+    r = authed.put("/api/preferences", json={"birthday": None}).json()
+    assert r["birthday"] is None and r["birth_year"] is None
+
+
+def test_units_and_height(authed):
+    r = authed.get("/api/preferences").json()
+    assert r["units"] == {"distance": "km", "elevation": "m", "weight": "kg", "height": "cm"}
+    r = authed.put("/api/preferences", json={"units_weight": "lb", "units_height": "ftin", "height_cm": 180.3}).json()
+    assert r["units"]["weight"] == "lb" and r["units"]["height"] == "ftin" and r["units"]["distance"] == "km"
+    assert r["height_cm"] == 180.3
+    assert authed.put("/api/preferences", json={"units_distance": "furlongs"}).status_code == 400
+    assert authed.put("/api/preferences", json={"height_cm": 10}).status_code == 422

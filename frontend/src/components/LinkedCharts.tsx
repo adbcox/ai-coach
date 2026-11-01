@@ -1,4 +1,6 @@
 import { useEffect, useRef } from "react";
+import { distFactor, elevFactor, elevUnit, useUnits } from "../lib/units";
+import { unitSpeed } from "../lib/format";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import { SamplesData } from "../api";
@@ -31,31 +33,32 @@ const has = (a: (number | null)[]) => a.some((v) => v != null && v !== 0);
 
 export default function LinkedCharts({ data, running, onHover, zones = [] }: Props) {
   const host = useRef<HTMLDivElement>(null);
+  const units = useUnits();
 
   useEffect(() => {
     const root = host.current;
     if (!root) return;
     root.innerHTML = "";
     const useDist = data.dist.some((d) => d != null && d > 0);
-    const x = useDist ? data.dist.map((d) => (d ?? 0) / 1000) : data.t.map((t) => t / 60);
-    const xLabel = useDist ? "km" : "min";
+    const x = useDist ? data.dist.map((d) => ((d ?? 0) / 1000) * distFactor()) : data.t.map((t) => t / 60);
+    const xLabel = useDist ? units.distance : "min";
     const speed = smooth(data.speed, 7);
 
     interface Spec { title: string; values: (number | null)[]; stroke: string; invert?: boolean; bands?: boolean; fmt?: (v: number) => string }
     const specs: Spec[] = [];
     if (has(data.speed)) {
       if (running) {
-        const paceMin = speed.map((s) => (s && s > 0.8 ? 1000 / s / 60 : null));
+        const paceMin = speed.map((s) => (s && s > 0.8 ? 1000 / s / 60 / distFactor() : null));
         specs.push({
-          title: "Pace (min/km)", values: paceMin, stroke: "#1f6feb", invert: true,
+          title: `Pace (min/${units.distance})`, values: paceMin, stroke: "#1f6feb", invert: true,
           fmt: (v) => `${Math.floor(v)}:${String(Math.round((v % 1) * 60)).padStart(2, "0")}`,
         });
       } else {
-        specs.push({ title: "Speed (km/h)", values: speed.map((s) => (s == null ? null : s * 3.6)), stroke: "#1f6feb" });
+        specs.push({ title: `Speed (${unitSpeed()})`, values: speed.map((s) => (s == null ? null : s * 3.6 * distFactor())), stroke: "#1f6feb" });
       }
     }
     if (has(data.hr)) specs.push({ title: "Heart rate (bpm)", values: smooth(data.hr, 5), stroke: "#cf222e", bands: zones.length > 0 });
-    if (has(data.alt)) specs.push({ title: "Elevation (m)", values: data.alt, stroke: "#6e7781" });
+    if (has(data.alt)) specs.push({ title: `Elevation (${elevUnit()})`, values: data.alt.map((v) => (v == null ? null : v * elevFactor())), stroke: "#6e7781" });
     if (has(data.power)) specs.push({ title: "Power (W)", values: smooth(data.power, 7), stroke: "#8250df" });
     if (has(data.cadence)) specs.push({ title: "Cadence", values: smooth(data.cadence, 7), stroke: "#2da44e" });
 
@@ -152,7 +155,7 @@ export default function LinkedCharts({ data, running, onHover, zones = [] }: Pro
       root.removeEventListener("mouseleave", leave);
       plots.forEach((p) => p.destroy());
     };
-  }, [data, running, onHover, zones]);
+  }, [data, running, onHover, zones, units]);
 
   return <div ref={host} className="plots" />;
 }

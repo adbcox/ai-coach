@@ -1,3 +1,4 @@
+import { setUnits, Units, useUnits } from "./lib/units";
 import { useCallback, useEffect, useState } from "react";
 import { api, SessionInfo } from "./api";
 import Activities from "./pages/Activities";
@@ -38,6 +39,7 @@ function parseHash(): Route {
 }
 
 export default function App() {
+  useUnits();
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [route, setRoute] = useState<Route>(parseHash);
 
@@ -45,6 +47,10 @@ export default function App() {
     api<SessionInfo>("/session").then(setSession).catch(() => setSession(null));
   }, []);
   useEffect(refresh, [refresh]);
+  const signedIn = !!session?.authenticated;
+  useEffect(() => {
+    if (signedIn) api<{ units: Units }>("/preferences").then((p) => setUnits(p.units)).catch(() => undefined);
+  }, [signedIn]);
   useEffect(() => {
     const on = () => setRoute(parseHash());
     window.addEventListener("hashchange", on);

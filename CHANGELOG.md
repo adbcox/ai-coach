@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.4
+
+Added
+- **Units you can choose** (Settings → Units): distance, pace and speed (km or miles), elevation (m or feet),
+  weight (kg or pounds) and height (cm or feet and inches). Applied across the dashboard, activities, charts, the
+  activity page and Predict. Everything is stored in metric; only the display changes. The working shown under
+  "Show the math" stays metric so it matches the papers.
+- **Height** (optional) in Settings → About you.
+
+Changed
+- **Birthday instead of birth year** (a date picker); your exact age is shown and used for the age-formula comparison.
+  A birth year you entered earlier is still honoured until you set a birthday.
+
+Fixed
+- Typing feet then inches no longer saves half the value (found while testing).
+
 ## 0.4.3
 
 Added

@@ -69,7 +69,19 @@ def latest_garmin_weight(conn: sqlite3.Connection) -> dict[str, Any] | None:
 
 
 def age_from_birth_year(birth_year: int | None, today: date | None = None) -> int | None:
-    """Age in whole years at the end of the birth year's anniversary is unknown, so this is year-based (+/- 1)."""
+    """Year-based age (off by one before the birthday); only used for installs that stored just a birth year."""
     if not birth_year:
         return None
     return (today or date.today()).year - birth_year
+
+
+def age_from_birthday(birthday: str | None, today: date | None = None) -> int | None:
+    """Exact age in whole years from an ISO date (YYYY-MM-DD); None if missing or invalid."""
+    if not birthday:
+        return None
+    try:
+        b = date.fromisoformat(birthday)
+    except ValueError:
+        return None
+    t = today or date.today()
+    return t.year - b.year - ((t.month, t.day) < (b.month, b.day))

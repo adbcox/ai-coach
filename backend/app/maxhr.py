@@ -7,7 +7,7 @@ from datetime import UTC, datetime, timedelta
 from statistics import median
 from typing import Any
 
-from . import references
+from . import body, references
 
 WINDOW_DAYS = 730
 
@@ -29,7 +29,9 @@ def estimate(conn: sqlite3.Connection, now: datetime | None = None) -> dict[str,
     summary_max = conn.execute("SELECT MAX(max_hr) AS m FROM activities WHERE max_hr BETWEEN 100 AND 230 "
                                "AND start_time >= ?", (since,)).fetchone()["m"]
     by = get_pref(conn, "pref_birth_year")
-    age = (now.year - int(by)) if by else None
+    age = body.age_from_birthday(get_pref(conn, "pref_birthday"), now.date()) if get_pref(conn, "pref_birthday") else None
+    if age is None:
+        age = (now.year - int(by)) if by else None
     tanaka = round(208 - 0.7 * age) if age else None
     out: dict[str, Any] = {"window_days": WINDOW_DAYS, "top_peaks": top, "garmin_summary_max": summary_max,
                            "birth_year": int(by) if by else None, "age": age, "age_formula_tanaka": tanaka,
