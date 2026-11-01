@@ -1,15 +1,17 @@
 # Install
 
-Port **26219** (a marathon is 26.219 miles). Change the *host* side of the
-port mapping if you need a different one; the container always listens on
-26219.
+Port **26219**. Why: the marathon is 26 miles 385 yards, which is
+26.21875 miles; rounded to 26.219 and with the decimal point dropped, that
+is 26219. It is also a valid, unprivileged port below Linux's ephemeral
+range (32768+). Change the *host* side of the port mapping if you need a
+different one; the container always listens on 26219.
 
 > Status: v0.1 skeleton. It has first-run setup, login, saving your Garmin
 > key (encrypted) and a Garmin sync that lists activities. No charts or
-> maps yet (roadmap v0.2). The Docker image has not been built by the
-> author's tooling yet (no Docker daemon was available); the first CI run
-> will be its first build. Tests, lint, the frontend build and a live
-> browser run of the app (without Docker) pass.
+> maps yet (roadmap v0.2). GitHub Actions builds the Docker image on every
+> push to `main` (first build succeeded); the author has not yet run that
+> image. Tests, lint, the frontend build and a live browser run of the app
+> (without Docker) pass.
 
 ## What you need
 
