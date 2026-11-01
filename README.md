@@ -1,4 +1,4 @@
-# ai-endurance-coach
+# AI Endurance Coach
 
 Self-hosted, AI-optional endurance training dashboard: Garmin sync, run analysis and a literature ingest area, in a single Docker container.
 
