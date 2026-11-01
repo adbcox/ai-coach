@@ -17,6 +17,7 @@ The whole app works with no AI until v0.5.
 
 ## Decided so far
 
+- **Stack (approved 2026-11-01):** Python + FastAPI backend; React + TypeScript (Vite) single-page app, built into the same Docker image (multi-stage build, Node only at build time); SQLite (WAL mode); two image tags: `slim` (sync, dashboard, agent access) and `full` (adds ingest converters: Docling, etc., CPU-only PyTorch). Chart and map libraries (e.g. uPlot/ECharts, MapLibre/Leaflet) to be chosen at v0.2, with a license check.
 - Single container; SQLite-class embedded storage; runs on a small box (Intel N100, 16 GB) and portable to a cloud host.
 - MVP targets desktop. Single admin user with built-in login (safe if later exposed publicly).
 - Mobile site, then installable web app, then multi-user, in that order.
@@ -24,6 +25,6 @@ The whole app works with no AI until v0.5.
 ## Open items
 
 - ~~Confirm FIT file download works with a Garmin personal key~~: confirmed for one cycling activity (see [Garmin docs](garmin.md)); still to test older activities and runs.
-- Pick the stack (Python assumed: the chosen ingest tools are Python) and the embedded database (SQLite default; DuckDB/Parquet if analysis outgrows it).
+- Revisit DuckDB/Parquet only if analysis outgrows SQLite.
 - ~~Check dependency licenses~~: done, see [licenses](licenses.md). No change to MIT needed.
 - Read Garmin's Personal API Terms and Conditions (shown only when creating a key; the public docs page covers setup steps, not the terms text) regarding AI use. Still unread.
