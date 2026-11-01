@@ -1,8 +1,10 @@
 # Roadmap
 
-The whole app works with no AI until v0.5.
+The whole app works with no AI until the AI-integration milestone below.
 
-| Version | Step | Scope |
+The "Version" column is the planned milestone order, not the app's release number; release numbers are in the [changelog](../CHANGELOG.md).
+
+| Milestone | Step | Scope |
 | --- | --- | --- |
 | v0.1 | 0 — Garmin ingest | **Built and in use** (full history and daily health data synced from a real account). First-run setup creates the single admin account; a settings page where the admin enters the Garmin API key (never via chat, repo or build; stored only on the server volume); sync via the [Garmin Personal API](garmin.md) into SQLite on the container volume, behind a provider interface so other providers can be added later. Per-second samples via FIT download. Pulls the entire activity history and all daily health data (sleep, HRV, Body Battery, summaries, heart rate, SpO2, steps, hydration, weight) as raw JSON, then keeps both up to date incrementally: a per-source automatic sync interval (Settings), a home-page quick sync (24-hour lookback) and 30-day-lookback background syncs, all anchored to the newest stored data. Done in the v0.1 skeleton; first live sync verified by the user. |
 | v0.2 | 1 — Dashboard/GUI | **First version built.** Desktop-first. Last-14-days dashboard (daily distance by sport, last 7 vs previous 7 days, sport filter, latest activities) and a single-run detail view: map of the route, pace/speed, heart rate, elevation, power and cadence charts linked to a moving map marker, training load and training effect when Garmin provides them, and GPX download. Uses the v0.1 admin login. Also: 4-week rolling 7-day average distance and rolling 7-day longest run line charts. Still to do: tune against real data (the data-shapes file), and confirm the "weekly mileage last 14 days" interpretation. |

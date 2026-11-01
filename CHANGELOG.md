@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.5.0
+
+A roll-up of the 0.4.2 to 0.4.7 fixes and adjustments below, in one install.
+
+Added
+- **About you** (Settings): sex, birthday (exact age), weight (pulled from your synced Garmin data, overridable) and
+  height. Not used in any calculation yet; each future formula will say when it uses one.
+- **Choosable units**: km or miles, metres or feet, kg or pounds, cm or feet and inches. Applies across the dashboard,
+  activities, charts, activity page and Predict; the written working stays metric to match the papers.
+- **Version badge** next to the name in the header and on the sign-in page.
+
+Changed
+- **Evidence**: twelve sources read in full and quoted accurately in Sources and credits (Riegel, Uth, Tanaka, Poole,
+  INTERLIVE, Kasiak, both Wiecha 2023 papers, HYPAC, Latorre-Roman, plus Minetti). Corrections: Riegel's paper gives 1.077 / 1.083
+  (world records), not 1.06; his time window is not 3.5 to 230 minutes; the critical-speed window is now 2 to 30 minutes
+  (Poole et al.); the heart-rate-ratio error range is explained (4.7 with age-predicted max HR, 2.7 with lab-measured).
+- Sleep shows as hours:minutes (6:12, not 6.2 h).
+
+Fixed
+- Distances in Latest activities no longer wrap onto two lines.
+- Typing feet then inches no longer saves half the height.
+- Copyrighted papers can never be committed or baked into the image (`*.pdf` and `*.epub` are ignored by git and Docker).
+
 ## 0.4.7
 
 Added
