@@ -1,6 +1,8 @@
 import base64
+import collections
 import json
 import time
+from datetime import date, timedelta
 
 import httpx
 import pytest
@@ -32,6 +34,9 @@ class FakeGarmin:
         ]
         self.valid_key = valid_key
         self.downloads = 0
+        self.calls = collections.Counter()
+        self.search_params = []
+        self.data_since = (date.today() - timedelta(days=30)).isoformat()
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
@@ -41,7 +46,16 @@ class FakeGarmin:
             return httpx.Response(200, text=make_jwt(time.time() + 86400))
         if not request.headers.get("authorization", "").startswith("Bearer "):
             return httpx.Response(401)
+        self.calls[path] += 1
+        params = request.url.params
+        if path.endswith("/dailysummaries"):
+            has = params["endDate"] >= self.data_since
+            return httpx.Response(200, json={"data": [{"calendarDate": params["endDate"]}] if has else []})
+        if path.endswith("/sleep-service/sleep/dailySleep"):
+            has = params["date"] >= self.data_since
+            return httpx.Response(200, json={"date": params["date"], "score": 80} if has else {})
         if path.endswith("/search/activities"):
+            self.search_params.append(dict(params))
             start = int(request.url.params.get("start", 0))
             limit = int(request.url.params.get("limit", 50))
             return httpx.Response(200, json=self.activities[start:start + limit])

@@ -16,10 +16,11 @@ from .config import Settings
 from .crypto import SecretBox
 from .fit.parser import FitError, ParsedActivity, extract_fit, parse_fit
 from .garmin.client import GarminClient, GarminError
+from .wellness import get_state, set_state, sync_wellness
 
 PROVIDER = "garmin"
 PAGE = 50
-MAX_PAGES = 200
+MAX_PAGES = 1000
 
 ClientFactory = Callable[[str, str], GarminClient]
 
@@ -112,13 +113,14 @@ class SyncManager:
     def running(self) -> bool:
         return self._lock.locked()
 
-    def start_background(self) -> bool:
+    def start_background(self, full: bool = False) -> bool:
         if self._lock.locked():
             return False
-        threading.Thread(target=self.run_once, daemon=True, name="garmin-sync").start()
+        threading.Thread(target=self.run_once, kwargs={"full": full}, daemon=True,
+                         name="garmin-sync").start()
         return True
 
-    def run_once(self) -> SyncResult:
+    def run_once(self, full: bool = False) -> SyncResult:
         if not self._lock.acquire(blocking=False):
             return SyncResult("error", message="A sync is already running.")
         conn = db.connect(self.settings.db_path)
@@ -128,7 +130,7 @@ class SyncManager:
         ).lastrowid
         conn.commit()
         try:
-            result = self._sync(conn)
+            result = self._sync(conn, run_id, full)
         except Exception as exc:  # never leave a run stuck as 'running'
             result = SyncResult("error", message=f"Unexpected error: {type(exc).__name__}")
         conn.execute(
@@ -140,7 +142,11 @@ class SyncManager:
         self._lock.release()
         return result
 
-    def _sync(self, conn) -> SyncResult:
+    def _sync(self, conn, run_id: int, full: bool) -> SyncResult:
+        def progress(text: str) -> None:
+            conn.execute("UPDATE sync_runs SET message=? WHERE id=?", (text, run_id))
+            conn.commit()
+
         row = conn.execute(
             "SELECT secret_enc FROM provider_credentials WHERE provider=?", (PROVIDER,)
         ).fetchone()
@@ -152,54 +158,78 @@ class SyncManager:
         except (ValueError, GarminError) as exc:
             return SyncResult("error", message=str(exc))
 
-        latest = conn.execute(
-            "SELECT MAX(start_time) AS m FROM activities WHERE source=?", (PROVIDER,)
-        ).fetchone()["m"]
-        if latest:
-            since = datetime.fromisoformat(latest).date() - timedelta(days=3)
-        else:
-            since = date.today() - timedelta(days=self.settings.backfill_days)
-        until = date.today() + timedelta(days=1)
-
         new = 0
         failures: list[str] = []
+        notes: list[str] = []
         try:
             with client:
                 client.ensure_token()
-                for page in range(MAX_PAGES):
-                    items = client.search_activities(
-                        start=page * PAGE, limit=PAGE,
-                        start_date=since.isoformat(), end_date=until.isoformat(),
-                    )
-                    for item in items:
-                        source_id = str(item.get("activityId", ""))
-                        if not source_id.isdecimal():
-                            failures.append("activity without a numeric id")
-                            continue
-                        exists = conn.execute(
-                            "SELECT 1 FROM activities WHERE source=? AND source_id=?",
-                            (PROVIDER, source_id),
-                        ).fetchone()
-                        if exists:
-                            continue
-                        try:
-                            blob = client.download_activity(source_id)
-                            parsed = parse_fit(extract_fit(blob))
-                        except FitError as exc:
-                            failures.append(f"{source_id}: {exc}")
-                            continue
-                        rel = f"activities/{PROVIDER}/{source_id}.zip"
-                        _save_file(self.settings.data_dir / rel, blob)
-                        if _insert(conn, item, parsed, rel):
-                            new += 1
-                        conn.commit()
-                        time.sleep(self.settings.request_delay_s)
-                    if len(items) < PAGE:
-                        break
+                new, failures = self._sync_activities(conn, client, full, progress)
+                earliest = conn.execute(
+                    "SELECT MIN(start_time) AS m FROM activities WHERE source=?", (PROVIDER,)
+                ).fetchone()["m"]
+                floor = (datetime.fromisoformat(earliest).date() - timedelta(days=365)
+                         if earliest else date.today() - timedelta(days=730))
+                notes = sync_wellness(conn, client, self.settings, full=full,
+                                      progress=progress, floor=floor)
         except GarminError as exc:
             conn.commit()
-            return SyncResult("error", new, f"{exc} ({new} activities saved before the error)")
-        msg = f"{new} new activities."
+            return SyncResult("error", new, f"{exc} ({new} new activities saved before the error; "
+                              "run Sync again to continue)")
+        msg = f"{new} new activities; health data up to date."
         if failures:
-            msg += f" {len(failures)} skipped: " + "; ".join(failures[:3])
+            msg += f" {len(failures)} activities skipped: " + "; ".join(failures[:3])
+        if notes:
+            msg += " Not available from Garmin: " + "; ".join(notes)
         return SyncResult("ok", new, msg)
+
+    def _sync_activities(self, conn, client, full: bool, progress) -> tuple[int, list[str]]:
+        backfilled = get_state(conn, "activities_backfill_done") == "1"
+        scan_all = full or not backfilled
+        start_date = end_date = None
+        if not scan_all:
+            latest = conn.execute(
+                "SELECT MAX(start_time) AS m FROM activities WHERE source=?", (PROVIDER,)
+            ).fetchone()["m"]
+            since = (datetime.fromisoformat(latest).date() - timedelta(days=3) if latest
+                     else date.today() - timedelta(days=self.settings.backfill_days))
+            start_date = since.isoformat()
+            end_date = (date.today() + timedelta(days=1)).isoformat()
+
+        new = 0
+        failures: list[str] = []
+        finished = False
+        for page in range(MAX_PAGES):
+            items = client.search_activities(start=page * PAGE, limit=PAGE,
+                                             start_date=start_date, end_date=end_date)
+            for item in items:
+                source_id = str(item.get("activityId", ""))
+                if not source_id.isdecimal():
+                    failures.append("activity without a numeric id")
+                    continue
+                exists = conn.execute(
+                    "SELECT 1 FROM activities WHERE source=? AND source_id=?",
+                    (PROVIDER, source_id),
+                ).fetchone()
+                if exists:
+                    continue
+                try:
+                    blob = client.download_activity(source_id)
+                    parsed = parse_fit(extract_fit(blob))
+                except FitError as exc:
+                    failures.append(f"{source_id}: {exc}")
+                    continue
+                rel = f"activities/{PROVIDER}/{source_id}.zip"
+                _save_file(self.settings.data_dir / rel, blob)
+                if _insert(conn, item, parsed, rel):
+                    new += 1
+                conn.commit()
+                if new % 10 == 0:
+                    progress(f"Downloading activities: {new} new so far")
+                time.sleep(self.settings.request_delay_s)
+            if len(items) < PAGE:
+                finished = True
+                break
+        if scan_all and finished:
+            set_state(conn, "activities_backfill_done", "1")
+        return new, failures

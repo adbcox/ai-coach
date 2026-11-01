@@ -42,7 +42,15 @@ export interface SyncRun {
   message: string | null;
 }
 
+export interface StoredSummary {
+  activities: number;
+  first_activity: string | null;
+  last_activity: string | null;
+  health_records: Record<string, number>;
+}
+
 export interface GarminStatus {
+  stored: StoredSummary;
   configured: boolean;
   validated_at: string | null;
   syncing: boolean;

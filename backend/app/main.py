@@ -148,7 +148,13 @@ def create_app(
         last = conn.execute("SELECT started_at, finished_at, status, new_activities, message "
                             "FROM sync_runs WHERE provider=? ORDER BY id DESC LIMIT 1",
                             (PROVIDER,)).fetchone()
+        acts = conn.execute("SELECT COUNT(*) AS n, MIN(start_time) AS first, "
+                            "MAX(start_time) AS last FROM activities").fetchone()
+        health = {r["kind"]: r["n"] for r in conn.execute(
+            "SELECT kind, COUNT(*) AS n FROM wellness_raw WHERE is_empty=0 GROUP BY kind")}
         return {
+            "stored": {"activities": acts["n"], "first_activity": acts["first"],
+                       "last_activity": acts["last"], "health_records": health},
             "configured": cred is not None,
             "validated_at": cred["validated_at"] if cred else None,
             "syncing": manager.running,
@@ -184,11 +190,11 @@ def create_app(
         return garmin_status(conn)
 
     @app.post("/api/sync", status_code=202)
-    def sync_start(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
+    def sync_start(full: bool = False, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
         if conn.execute("SELECT 1 FROM provider_credentials WHERE provider=?",
                         (PROVIDER,)).fetchone() is None:
             raise HTTPException(400, "Add your Garmin key in Settings first.")
-        if not manager.start_background():
+        if not manager.start_background(full=full):
             raise HTTPException(409, "A sync is already running.")
         return {"started": True}
 

@@ -27,9 +27,10 @@ _REFRESH_WINDOW_S = 3600  # refresh a token that expires within the hour
 class GarminError(Exception):
     """kind: auth | http | network | bad_response"""
 
-    def __init__(self, kind: str, message: str) -> None:
+    def __init__(self, kind: str, message: str, status: int | None = None) -> None:
         super().__init__(message)
         self.kind = kind
+        self.status = status
 
 
 def jwt_expiry(token: str) -> float:
@@ -50,6 +51,8 @@ class GarminClient:
         transport: httpx.BaseTransport | None = None,
         timeout: float = 30.0,
         clock: Callable[[], float] = time.time,
+        sleep: Callable[[float], None] = time.sleep,
+        retry_delay: float = 5.0,
     ) -> None:
         self._api_key = api_key.strip()
         if not self._api_key:
@@ -57,6 +60,8 @@ class GarminClient:
         self._base = base_url.rstrip("/")
         self._http = httpx.Client(transport=transport, timeout=timeout)
         self._clock = clock
+        self._sleep = sleep
+        self._retry_delay = retry_delay
         self._token: str | None = None
         self._expires = 0.0
 
@@ -90,9 +95,13 @@ class GarminClient:
         self._expires = jwt_expiry(token)
         self._token = token
 
-    def _get(self, path: str, *, params: dict[str, Any] | None = None, accept: str) -> httpx.Response:
-        for attempt in (1, 2):
-            self.ensure_token(force=attempt == 2)
+    def _get(
+        self, path: str, *, params: dict[str, Any] | None = None, accept: str
+    ) -> httpx.Response:
+        refreshed = False
+        rate_waits = 0
+        while True:
+            self.ensure_token()
             try:
                 resp = self._http.get(
                     self._base + path,
@@ -101,14 +110,29 @@ class GarminClient:
                 )
             except httpx.HTTPError as exc:
                 raise GarminError("network", f"Could not reach Garmin: {type(exc).__name__}") from exc
-            if resp.status_code == 401 and attempt == 1:
-                continue  # token may have been revoked/expired early: refresh once
+            if resp.status_code == 401 and not refreshed:
+                refreshed = True  # token may have been revoked/expired early: refresh once
+                self.ensure_token(force=True)
+                continue
+            if resp.status_code == 429 and rate_waits < 4:
+                rate_waits += 1  # rate limited: back off and retry
+                self._sleep(self._retry_delay * rate_waits)
+                continue
             if resp.status_code in (401, 403):
-                raise GarminError("auth", "Garmin refused access (key expired or revoked?).")
+                raise GarminError("auth", "Garmin refused access (key expired or revoked?).", resp.status_code)
             if resp.status_code >= 400:
-                raise GarminError("http", f"Garmin returned HTTP {resp.status_code} for {path}.")
+                raise GarminError("http", f"Garmin returned HTTP {resp.status_code} for {path}.", resp.status_code)
             return resp
-        raise GarminError("auth", "Garmin refused access.")  # pragma: no cover
+
+    def get_json(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        """GET any Personal API path and return decoded JSON (None if empty)."""
+        resp = self._get(path, params=params, accept="application/json")
+        if not resp.content:
+            return None
+        try:
+            return resp.json()
+        except ValueError as exc:
+            raise GarminError("bad_response", f"Not valid JSON from {path}.") from exc
 
     def search_activities(
         self, *, start: int = 0, limit: int = 50, start_date: str | None = None,

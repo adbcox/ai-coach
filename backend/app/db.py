@@ -62,6 +62,24 @@ CREATE TABLE IF NOT EXISTS samples (
     PRIMARY KEY (activity_id, t)
 ) WITHOUT ROWID;
 
+CREATE TABLE IF NOT EXISTS sync_state (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
+-- Raw Garmin wellness payloads (sleep, HRV, Body Battery, stress, HR, SpO2, ...).
+-- Stored as received so nothing is lost; the dashboard parses what it needs later.
+CREATE TABLE IF NOT EXISTS wellness_raw (
+    source TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    is_empty INTEGER NOT NULL,
+    payload TEXT NOT NULL,
+    PRIMARY KEY (source, kind, start_date, end_date)
+);
+
 CREATE TABLE IF NOT EXISTS sync_runs (
     id INTEGER PRIMARY KEY,
     provider TEXT NOT NULL,

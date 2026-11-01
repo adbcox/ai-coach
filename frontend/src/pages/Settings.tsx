@@ -85,15 +85,35 @@ export default function Settings() {
           <button onClick={() => run(() => api("/sync", "POST"))} disabled={status.syncing}>
             {status.syncing ? "Syncing…" : "Sync now"}
           </button>
+          <button
+            onClick={() => run(() => api("/sync?full=true", "POST"))}
+            disabled={status.syncing}
+            title="Re-scan all history and fill any gaps"
+          >
+            Re-sync all history
+          </button>
           <button onClick={() => confirm("Remove the saved Garmin key?") && run(() => api("/providers/garmin", "DELETE"))}>
             Remove key
           </button>
         </div>
       )}
 
+      {status?.stored && status.stored.activities > 0 && (
+        <p className="muted">
+          Stored: {status.stored.activities} activities
+          {status.stored.first_activity
+            ? ` (${new Date(status.stored.first_activity).toLocaleDateString()} to ${new Date(status.stored.last_activity ?? status.stored.first_activity).toLocaleDateString()})`
+            : ""}
+          {Object.keys(status.stored.health_records).length > 0 &&
+            `; health data: ${Object.entries(status.stored.health_records)
+              .map(([k, n]) => `${k.replace(/_/g, " ")} ${n}`)
+              .join(", ")}`}
+        </p>
+      )}
+
       {last && (
         <p className="muted">
-          Last sync: {last.status}
+          {last.status === "running" ? "Sync in progress" : "Last sync"}: {last.status === "running" ? "" : last.status}
           {last.finished_at ? ` at ${new Date(last.finished_at).toLocaleString()}` : ""} — {last.message ?? ""}
         </p>
       )}

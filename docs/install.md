@@ -82,9 +82,16 @@ for the current official steps see docs.unraid.net.)
    12+ character password). Only the first visit can do this.
 2. **Settings**: paste the Garmin key, **Save and test**. A wrong or expired
    key is rejected with a message and nothing is stored.
-3. **Sync now**. The first sync backfills the last 90 days (set
-   `AEC_BACKFILL_DAYS` to change), then runs every 6 hours
-   (`AEC_SYNC_INTERVAL_HOURS`, `0` disables).
+3. **Sync now**. The first sync downloads your **entire** Garmin activity
+   history (every activity back to your first, with its FIT file and
+   per-second data) and walks back through your daily health data (sleep,
+   HRV, Body Battery, daily summaries, heart rate, SpO2, steps, hydration,
+   weight) until it runs out. This can take a long time on a large account;
+   progress shows in Settings and you can leave the page. If it is
+   interrupted or hits an error, press Sync again and it continues where it
+   stopped. After that it only fetches what is new, every 6 hours
+   (`AEC_SYNC_INTERVAL_HOURS`, `0` disables). **Re-sync all history** re-scans
+   everything and fills any gaps.
 4. **Activities** lists what was imported.
 
 The activity-list response from Garmin has not been checked against a live
@@ -102,7 +109,6 @@ Settings says what failed.
 | `AEC_SECURE_COOKIES` | `false` | Set `true` when served over HTTPS |
 | `AEC_APP_SECRET` / `AEC_APP_SECRET_FILE` | unset | Master key override; keeps the encryption key off the data volume (use on a cloud host) |
 | `AEC_SYNC_INTERVAL_HOURS` | `6` | Background sync interval, `0` = off |
-| `AEC_BACKFILL_DAYS` | `90` | How far back the first sync goes |
 
 ## Data and backups
 
