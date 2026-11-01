@@ -11,6 +11,9 @@ services:
     volumes:
       - ./data:/data
     environment:
+      # Owner of the files in ./data (default 10001). On Unraid use PUID=99 PGID=100.
+      # PUID: "1000"
+      # PGID: "1000"
       # Set to "true" only when serving over HTTPS (reverse proxy / cloud).
       AEC_SECURE_COOKIES: "false"
       # Optional: keep the master key off the data volume (recommended on a cloud host).

@@ -20,9 +20,9 @@ WORKDIR /app
 COPY backend/ /app/backend/
 RUN pip install /app/backend && rm -rf /app/backend
 COPY --from=web /web/dist /app/static
-RUN useradd --system --uid 10001 --home-dir /app coach \
-    && mkdir -p /data && chown coach /data
-USER coach
+# Starts as root only to fix ownership of the /data volume, then drops to
+# PUID:PGID (default 10001; Unraid users set PUID=99 PGID=100). See app/__main__.py.
+RUN mkdir -p /data
 VOLUME /data
 EXPOSE 26219
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \

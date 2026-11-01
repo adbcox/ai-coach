@@ -62,6 +62,12 @@ Docker tab, **Add Container**, then:
 | Repository | `ghcr.io/help-for-me/ai-endurance-coach:slim` |
 | Port | container `26219`, host `26219`, TCP |
 | Path | container `/data`, host `/mnt/user/appdata/ai-endurance-coach` |
+| Variable | `PUID` = `99` |
+| Variable | `PGID` = `100` |
+
+`PUID`/`PGID` (Unraid's `nobody:users`) make the app own its files on the
+appdata share. Without them it runs as user 10001, which is fine on a plain
+Docker host but leaves root-owned/foreign-owned files on Unraid shares.
 
 Use **Add another Path, Port, Variable, Label or Device** for each mapping.
 If the image is not public yet, use Option A from the Unraid terminal
@@ -91,6 +97,7 @@ Settings says what failed.
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `PORT` | `26219` | Listening port inside the container |
+| `PUID` / `PGID` | `10001` | User/group the app runs as; the container starts as root only to fix `/data` ownership, then drops to this user. Unraid: `99` / `100` |
 | `AEC_DATA_DIR` | `/data` | Data volume |
 | `AEC_SECURE_COOKIES` | `false` | Set `true` when served over HTTPS |
 | `AEC_APP_SECRET` / `AEC_APP_SECRET_FILE` | unset | Master key override; keeps the encryption key off the data volume (use on a cloud host) |
