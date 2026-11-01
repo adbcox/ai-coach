@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { distFactor, elevFactor, elevUnit, useUnits } from "../lib/units";
-import { unitSpeed } from "../lib/format";
+import { duration, unitSpeed } from "../lib/format";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import { SamplesData } from "../api";
@@ -40,8 +40,8 @@ export default function LinkedCharts({ data, running, onHover, zones = [] }: Pro
     if (!root) return;
     root.innerHTML = "";
     const useDist = data.dist.some((d) => d != null && d > 0);
-    const x = useDist ? data.dist.map((d) => ((d ?? 0) / 1000) * distFactor()) : data.t.map((t) => t / 60);
-    const xLabel = useDist ? units.distance : "min";
+    const x = useDist ? data.dist.map((d) => ((d ?? 0) / 1000) * distFactor()) : data.t.map((t) => t);
+    const xLabel = useDist ? units.distance : "time";
     const speed = smooth(data.speed, 7);
 
     interface Spec { title: string; values: (number | null)[]; stroke: string; invert?: boolean; bands?: boolean; fmt?: (v: number) => string }
@@ -94,7 +94,8 @@ export default function LinkedCharts({ data, running, onHover, zones = [] }: Pro
         cursor: { sync: { key: sync.key }, points: { show: false } },
         scales: { x: { time: false }, y: spec.invert ? { dir: -1 } : {} },
         axes: [
-          { show: idx === specs.length - 1, label: xLabel, stroke: "#8b949e", grid: { stroke: "rgba(128,128,128,.15)" } },
+          { show: idx === specs.length - 1, label: xLabel, stroke: "#8b949e", grid: { stroke: "rgba(128,128,128,.15)" },
+            values: useDist ? undefined : (_u, ticks) => ticks.map((t) => duration(t)) },
           {
             stroke: "#8b949e", size: 54, grid: { stroke: "rgba(128,128,128,.15)" },
             values: spec.fmt ? (_u, ticks) => ticks.map((t) => spec.fmt!(t)) : undefined,

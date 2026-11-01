@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.1
+
+Changed
+- **Times are never decimals.** Every duration now reads as m:ss, h:mm or h:mm:ss as appropriate. The last decimal
+  time in the app, the minutes axis on activity charts without a distance (e.g. treadmill runs), is now m:ss or
+  h:mm:ss. Sleep (0.4.6), activity times, predictions, paces and the relative "x min ago" labels already followed this.
+
 ## 0.5.0
 
 A roll-up of the 0.4.2 to 0.4.7 fixes and adjustments below, in one install.
