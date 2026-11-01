@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.6
+
+Changed
+- Sleep durations now read as hours:minutes (6:12 instead of 6.2 h) on the Recovery tile, the chart readout and the chart axis.
+
 ## 0.4.5
 
 Fixed

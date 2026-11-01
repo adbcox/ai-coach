@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import TrendChart from "../components/TrendChart";
-import { lastDays } from "../lib/format";
+import { hm, lastDays } from "../lib/format";
 
 interface Day {
   date: string;
@@ -59,7 +59,7 @@ export default function Recovery({ goSettings }: { goSettings: () => void }) {
 
       <div className="tiles">
         <Tile label="Sleep score" value={newest("sleep_score")} unit="" />
-        <Tile label="Sleep" value={newest("sleep_h")} unit=" h" digits={1} />
+        <Tile label="Sleep (h:mm)" value={newest("sleep_h")} unit="" asHours />
         <Tile label="HRV (last night)" value={newest("hrv")} unit=" ms" />
         <Tile label="Resting HR" value={newest("resting_hr")} unit=" bpm" />
         <Tile label="Body Battery (max)" value={newest("bb_max")} unit="" />
@@ -68,7 +68,7 @@ export default function Recovery({ goSettings }: { goSettings: () => void }) {
       <div className="grid2">
         <TrendChart title="Sleep score" unit="score" days={days} decimals={0}
           series={[{ name: "Sleep score", color: "#8250df", values: col("sleep_score") }]} />
-        <TrendChart title="Sleep duration" unit="hours" days={days} decimals={1}
+        <TrendChart title="Sleep duration" unit="h:mm" days={days} hours
           series={[{ name: "Total", color: "#1f6feb", values: col("sleep_h") },
                    { name: "Deep", color: "#0b3d91", values: col("deep_h"), dashed: true },
                    { name: "REM", color: "#e8590c", values: col("rem_h"), dashed: true }]} />
@@ -90,11 +90,11 @@ export default function Recovery({ goSettings }: { goSettings: () => void }) {
   );
 }
 
-function Tile({ label, value, unit, digits = 0 }: { label: string; value?: number; unit: string; digits?: number }) {
+function Tile({ label, value, unit, digits = 0, asHours = false }: { label: string; value?: number; unit: string; digits?: number; asHours?: boolean }) {
   return (
     <div className="card tile">
       <span className="muted">{label}</span>
-      <strong>{value == null ? "–" : `${value.toFixed(digits)}${unit}`}</strong>
+      <strong>{value == null ? "–" : asHours ? hm(value) : `${value.toFixed(digits)}${unit}`}</strong>
     </div>
   );
 }

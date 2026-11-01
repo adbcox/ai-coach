@@ -20,6 +20,13 @@ export const elevation = (m: number | null | undefined) =>
   m == null ? "–" : `${Math.round(m * elevFactor())} ${elevUnit()}`;
 export const unitElev = () => elevUnit();
 
+/** Hours as h:mm, e.g. 6.2 -> "6:12". */
+export function hm(hours: number | null | undefined): string {
+  if (hours == null) return "–";
+  const total = Math.round(hours * 60);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
 export function duration(s: number | null | undefined): string {
   if (s == null) return "–";
   const h = Math.floor(s / 3600);

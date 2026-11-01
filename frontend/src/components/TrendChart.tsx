@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { hm } from "../lib/format";
 import { useWidth } from "../lib/useWidth";
 
 export interface Series { name: string; color: string; values: (number | null)[]; dashed?: boolean }
@@ -10,6 +11,7 @@ interface Props {
   series: Series[];
   band?: { low: (number | null)[]; high: (number | null)[]; label: string };
   decimals?: number;
+  hours?: boolean; // values are hours; show as h:mm
   note?: string;
 }
 
@@ -20,7 +22,7 @@ function nice(min: number, max: number): [number, number] {
 }
 
 /** Line chart with gaps for missing days, optional shaded band, hover readout. */
-export default function TrendChart({ title, unit, days, series, band, decimals = 0, note }: Props) {
+export default function TrendChart({ title, unit, days, series, band, decimals = 0, hours = false, note }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const [box, W] = useWidth(640);
   const H = 220, padL = 44, padR = 14, padT = 22, padB = 28;
@@ -55,7 +57,7 @@ export default function TrendChart({ title, unit, days, series, band, decimals =
   };
   const last = (s: Series) => { for (let i = s.values.length - 1; i >= 0; i--) if (s.values[i] != null) return i; return -1; };
   const at = hover ?? Math.max(...series.map(last));
-  const fmt = (v: number | null) => (v == null ? "–" : v.toFixed(decimals));
+  const fmt = (v: number | null) => (v == null ? "–" : hours ? hm(v) : v.toFixed(decimals));
   const label = (i: number) => new Date(days[i] + "T00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const ticks = Array.from({ length: 5 }, (_, k) => lo + ((hi - lo) * k) / 4);
 
@@ -84,7 +86,7 @@ export default function TrendChart({ title, unit, days, series, band, decimals =
         {ticks.map((t) => (
           <g key={t}>
             <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} className="grid" />
-            <text x={padL - 6} y={y(t) + 5} textAnchor="end" className="tick big">{Math.round(t * 10) / 10}</text>
+            <text x={padL - 6} y={y(t) + 5} textAnchor="end" className="tick big">{hours ? hm(t) : Math.round(t * 10) / 10}</text>
           </g>
         ))}
         <text x={2} y={11} className="tick big">{unit}</text>
