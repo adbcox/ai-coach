@@ -32,14 +32,13 @@ export default function ActivityDetail({ id, back }: { id: number; back: () => v
   const [hover, setHover] = useState<number | null>(null);
   const [isRace, setIsRace] = useState(false);
   const [zones, setZones] = useState<HrZone[]>([]);
-  const [zoneNote, setZoneNote] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     setDetail(null);
     setSamples(null);
-    api<{ hr_zones: HrZone[]; hr_zone_note: string }>("/preferences")
-      .then((p) => { setZones(p.hr_zones); setZoneNote(p.hr_zone_note); })
+    api<{ hr_zones: HrZone[] }>("/preferences")
+      .then((p) => setZones(p.hr_zones))
       .catch(() => undefined);
     api<Detail>(`/activities/${id}`).then((d) => { setDetail(d); setIsRace(!!(d as unknown as { is_race?: boolean }).is_race); }).catch((e) => setError(e.message));
     api<SamplesData>(`/activities/${id}/samples?max_points=1500`).then(setSamples).catch((e) => setError(e.message));
