@@ -10,6 +10,7 @@ The whole app works with no AI until v0.5.
 | v0.4 | 3 — Recovery | Sleep, HRV, Body Battery and stress in the dashboard. |
 | v0.5 | 4 — AI integration | REST API + MCP server so any agent (local model, Claude, ChatGPT, Codex, ...) can connect; actionable distillation of ingested sources; plan-adjustment assistant. |
 | v0.6+ | — | Research-grounding approach (how an agent selects research: RAG, curated corpus, ...); additional data providers (e.g. Strava export). |
+| With 2nd provider | — | Cross-source linking and de-duplication: when more than one source is connected, match the same activity across them (e.g. Garmin and a Strava export) into one record so totals are not double counted. Keep each source's original record and link them, with a rule for which source wins per field. |
 | v0.7 | — | Mobile-friendly website (responsive layouts). |
 | v0.8 | — | Installable web app (PWA): home-screen icon, full-screen, fast loads. |
 | v1.0 | — | Used to adjust real training weeks, reliably. |
@@ -20,6 +21,7 @@ The whole app works with no AI until v0.5.
 - **Stack (approved 2026-11-01):** Python + FastAPI backend; React + TypeScript (Vite) single-page app, built into the same Docker image (multi-stage build, Node only at build time); SQLite (WAL mode); two image tags: `slim` (sync, dashboard, agent access) and `full` (adds ingest converters: Docling, etc., CPU-only PyTorch). Chart and map libraries (e.g. uPlot/ECharts, MapLibre/Leaflet) to be chosen at v0.2, with a license check.
 - Single container; SQLite-class embedded storage; runs on a small box (Intel N100, 16 GB) and portable to a cloud host.
 - The Garmin API key is entered by the user in the running app's settings page (no env var, never shared with the developer or an AI). Needs the admin login from v0.1. Development and tests use recorded fixtures, not a real key.
+- Garmin API key is encrypted at rest with a master key generated on first run and stored separately from the database (owner-only permissions); an optional environment variable or Docker secret overrides it (use this on a cloud host).
 - MVP targets desktop. Single admin user with built-in login (safe if later exposed publicly).
 - Mobile site, then installable web app, then multi-user, in that order.
 
