@@ -5,12 +5,21 @@ The whole app works with no AI until v0.5.
 | Version | Step | Scope |
 | --- | --- | --- |
 | v0.1 | 0 — Garmin ingest | Sync via the [Garmin Personal API](garmin.md) into SQLite on the container volume, behind a provider interface so other providers can be added later. Per-second samples via FIT download (confirm the personal key can fetch FIT files first). |
-| v0.2 | 1 — Dashboard/GUI | Mileage for the last 14 days; single-run detail view including a GPX/map view. |
+| v0.2 | 1 — Dashboard/GUI | Desktop-first. Mileage for the last 14 days; single-run detail view including a GPX/map view with linked charts. Built-in login for a single admin user. |
 | v0.3 | 2 — Literature ingest | Upload a file or paste a link; off-the-shelf OCR/extraction tools convert it into the [three ingest tiers](ingest.md). No LLM needed. |
 | v0.4 | 3 — Recovery | Sleep, HRV, Body Battery and stress in the dashboard. |
 | v0.5 | 4 — AI integration | REST API + MCP server so any agent (local model, Claude, ChatGPT, Codex, ...) can connect; actionable distillation of ingested sources; plan-adjustment assistant. |
 | v0.6+ | — | Research-grounding approach (how an agent selects research: RAG, curated corpus, ...); additional data providers (e.g. Strava export). |
+| v0.7 | — | Mobile-friendly website (responsive layouts). |
+| v0.8 | — | Installable web app (PWA): home-screen icon, full-screen, fast loads. |
 | v1.0 | — | Used to adjust real training weeks, reliably. |
+| Later | — | Multi-user accounts (each user with their own Garmin key), way down the road. |
+
+## Decided so far
+
+- Single container; SQLite-class embedded storage; runs on a small box (Intel N100, 16 GB) and portable to a cloud host.
+- MVP targets desktop. Single admin user with built-in login (safe if later exposed publicly).
+- Mobile site, then installable web app, then multi-user, in that order.
 
 ## Open items
 
