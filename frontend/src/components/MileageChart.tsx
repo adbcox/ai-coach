@@ -1,4 +1,5 @@
 import { Activity } from "../api";
+import { useWidth } from "../lib/useWidth";
 import { km, lastDays, localDay, sportGroup, SportGroup } from "../lib/format";
 
 const GROUPS: SportGroup[] = ["Running", "Cycling", "Hiking", "Other"];
@@ -10,6 +11,7 @@ const COLORS: Record<SportGroup, string> = {
 };
 
 export default function MileageChart({ activities, days = 14 }: { activities: Activity[]; days?: number }) {
+  const [box, W] = useWidth(640);
   const labels = lastDays(days);
   const byDay = new Map<string, Record<SportGroup, number>>();
   for (const day of labels) byDay.set(day, { Running: 0, Cycling: 0, Hiking: 0, Other: 0 });
@@ -21,11 +23,13 @@ export default function MileageChart({ activities, days = 14 }: { activities: Ac
   const rawMax = Math.max(5, ...totals);
   const step = rawMax <= 10 ? 5 : rawMax <= 40 ? 10 : rawMax <= 100 ? 20 : 50;
   const max = Math.ceil(rawMax / step) * step;
-  const W = 960, H = 250, padL = 44, padB = 28, padT = 18;
+  const H = 240, padL = 44, padB = 28, padT = 18;
+  const labelEvery = W < 480 ? 3 : 2;
   const bw = (W - padL) / days;
 
   return (
     <div>
+      <div ref={box}>
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Daily distance, last ${days} days`} className="chart">
         {Array.from({ length: max / step + 1 }, (_, i) => (i * step) / max).map((f) => {
           const y = padT + (H - padT - padB) * (1 - f);
@@ -53,7 +57,7 @@ export default function MileageChart({ activities, days = 14 }: { activities: Ac
           return (
             <g key={day}>
               {parts}
-              {(i % 2 === 1 || days <= 8) && (
+              {((days - 1 - i) % labelEvery === 0 || days <= 8) && (
                 <text x={padL + i * bw + bw / 2} y={H - 8} textAnchor="middle" className="tick">
                   {d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}
                 </text>
@@ -63,6 +67,7 @@ export default function MileageChart({ activities, days = 14 }: { activities: Ac
         })}
         <text x={padL - 6} y={10} textAnchor="end" className="tick">km</text>
       </svg>
+      </div>
       <div className="legend">
         {GROUPS.map((g) => (
           <span key={g}>

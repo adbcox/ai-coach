@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.2
+
+New
+- **Phone layout.** Bottom tab bar (Dashboard, Activities, Recovery, Settings),
+  charts sized to the screen with readable text, compact tables (less important
+  columns hidden), bigger touch targets, no zooming when you tap a field, and a
+  scrollable sport filter row.
+- **Touch on charts.** Drag a finger along any chart to read values; on the run
+  page it also moves the marker on the map. Vertical swipes still scroll the page.
+
+Fixed
+- No more sideways scrolling on phone-width screens (the header was about
+  700 px wide).
+
+Docs
+- Roadmap: transparent race-time predictions (every prediction must show its
+  inputs, method, uncertainty and sources); "open and explainable" added to the
+  README principles.
+
 ## 0.2.1
 
 New

@@ -43,22 +43,22 @@ export default function Activities({ goSettings, open }: { goSettings: () => voi
           ))}
         </div>
       </div>
-      <table>
+      <table className="tbl-activities">
         <thead>
           <tr>
-            <th>Date</th><th>Sport</th><th>Name</th><th className="num">km</th>
-            <th className="num">Time</th><th className="num">Avg HR</th>
+            <th>Date</th><th className="hide-sm">Sport</th><th>Name</th><th className="num">km</th>
+            <th className="num">Time</th><th className="num hide-sm">Avg HR</th>
           </tr>
         </thead>
         <tbody>
           {shown.map((a) => (
             <tr key={a.id} className="click" onClick={() => open(a.id)}>
-              <td>{new Date(a.start_time).toLocaleDateString()}</td>
-              <td>{(a.sport ?? "–").replace(/_/g, " ")}</td>
-              <td>{a.name ?? "–"}</td>
+              <td className="nowrap">{new Date(a.start_time).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</td>
+              <td className="hide-sm">{(a.sport ?? "–").replace(/_/g, " ")}</td>
+              <td className="ellip">{a.name ?? "–"}</td>
               <td className="num">{a.distance_m ? km(a.distance_m) : "–"}</td>
               <td className="num">{duration(a.duration_s)}</td>
-              <td className="num">{a.avg_hr ? Math.round(a.avg_hr) : "–"}</td>
+              <td className="num hide-sm">{a.avg_hr ? Math.round(a.avg_hr) : "–"}</td>
             </tr>
           ))}
         </tbody>

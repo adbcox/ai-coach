@@ -7,6 +7,21 @@ import Dashboard from "./pages/Dashboard";
 import Recovery from "./pages/Recovery";
 import Settings from "./pages/Settings";
 
+const ICONS: Record<string, string> = {
+  dashboard: "M3 13h8V3H3v10zm10 8h8V11h-8v10zM3 21h8v-6H3v6zM13 3v6h8V3h-8z",
+  activities: "M4 6h16M4 12h16M4 18h10",
+  recovery: "M3 12h4l3-8 4 16 3-8h4",
+  settings: "M12 8a4 4 0 100 8 4 4 0 000-8zm8 4l2-1-2-3-2 .6a7 7 0 00-1.5-1L16 5h-4l-.5 2.6a7 7 0 00-1.5 1L8 8 6 11l2 1a7 7 0 000 2l-2 1 2 3 2-.6a7 7 0 001.5 1L12 22h4l.5-2.6a7 7 0 001.5-1l2 .6 2-3-2-1a7 7 0 000-2z",
+};
+
+function Icon({ name }: { name: string }) {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={ICONS[name]} />
+    </svg>
+  );
+}
+
 type Route = { name: "dashboard" | "activities" | "recovery" | "settings" } | { name: "activity"; id: number };
 
 function parseHash(): Route {
@@ -51,7 +66,7 @@ export default function App() {
           ))}
         </nav>
         <span className="spacer" />
-        <span className="muted">{session.username}</span>
+        <span className="muted hide-sm">{session.username}</span>
         <button onClick={() => api("/logout", "POST").then(refresh)}>Sign out</button>
       </header>
       <main>
@@ -61,6 +76,14 @@ export default function App() {
         {route.name === "recovery" && <Recovery goSettings={() => go("settings")} />}
         {route.name === "settings" && <Settings onRestored={refresh} />}
       </main>
+      <nav className="tabbar" aria-label="Main">
+        {(["dashboard", "activities", "recovery", "settings"] as const).map((t) => (
+          <button key={t} className={tab === t ? "active" : ""} onClick={() => go(t === "dashboard" ? "" : t)}>
+            <Icon name={t} />
+            <span>{t[0].toUpperCase() + t.slice(1)}</span>
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }

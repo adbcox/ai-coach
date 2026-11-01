@@ -120,12 +120,12 @@ export default function Dashboard({ open, goSettings }: { open: (id: number) => 
             <button className="link" onClick={goSettings}>Settings</button> if a sync is still running.
           </p>
         ) : (
-          <table>
+          <table className="tbl-latest">
             <tbody>
               {latest.map((a) => (
                 <tr key={a.id} className="click" onClick={() => open(a.id)}>
-                  <td>{new Date(a.start_time).toLocaleDateString()}</td>
-                  <td>{a.name ?? a.sport ?? "Activity"}</td>
+                  <td className="nowrap">{new Date(a.start_time).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</td>
+                  <td className="ellip">{a.name ?? a.sport ?? "Activity"}</td>
                   <td className="num">{km(a.distance_m)} km</td>
                   <td className="num">{duration(a.duration_s)}</td>
                 </tr>

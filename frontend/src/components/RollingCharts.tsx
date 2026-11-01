@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Activity } from "../api";
 import { lastDays, localDay } from "../lib/format";
+import { useWidth } from "../lib/useWidth";
 
 const SPAN = 28; // days shown
 const WINDOW = 7; // rolling window
@@ -17,7 +18,8 @@ function LineChart({ title, unit, points, color, sub }: {
   title: string; unit: string; points: Pt[]; color: string; sub: string;
 }) {
   const [hover, setHover] = useState<number | null>(null);
-  const W = 640, H = 230, padL = 44, padR = 14, padT = 22, padB = 28;
+  const [box, W] = useWidth(640);
+  const H = 230, padL = 44, padR = 14, padT = 22, padB = 28;
   const max = niceMax(Math.max(...points.map((p) => p.value)) * 1.05);
   const x = (i: number) => padL + ((W - padL - padR) * i) / (points.length - 1);
   const y = (v: number) => padT + (H - padT - padB) * (1 - v / max);
@@ -41,17 +43,20 @@ function LineChart({ title, unit, points, color, sub }: {
           </span>
         </span>
       </div>
+      <div ref={box}>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="chart"
+        style={{ touchAction: "pan-y" }}
         role="img"
         aria-label={title}
-        onMouseMove={(e) => {
+        onPointerMove={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
           const px = ((e.clientX - r.left) / r.width) * W;
           setHover(Math.min(points.length - 1, Math.max(0, Math.round(((px - padL) / (W - padL - padR)) * (points.length - 1)))));
         }}
-        onMouseLeave={() => setHover(null)}
+        onPointerDown={(e) => e.currentTarget.dispatchEvent(new PointerEvent("pointermove", { clientX: e.clientX, clientY: e.clientY, bubbles: true }))}
+        onPointerLeave={(e) => e.pointerType === "mouse" && setHover(null)}
       >
         {[0, 0.25, 0.5, 0.75, 1].map((f) => (
           <g key={f}>
@@ -72,6 +77,7 @@ function LineChart({ title, unit, points, color, sub }: {
         <line x1={x(shown)} x2={x(shown)} y1={padT} y2={H - padB} stroke={color} strokeDasharray="3 3" opacity={hover == null ? 0 : 0.6} />
         <circle cx={x(shown)} cy={y(cur.value)} r={4.5} fill={color} stroke="var(--card)" strokeWidth={2} />
       </svg>
+      </div>
       <span className="muted">{sub}</span>
     </section>
   );

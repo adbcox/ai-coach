@@ -125,7 +125,19 @@ export default function LinkedCharts({ data, running, onHover, zones = [] }: Pro
           ],
         },
       };
-      plots.push(new uPlot(opts, [x, spec.values as number[]], target));
+      const u = new uPlot(opts, [x, spec.values as number[]], target);
+      plots.push(u);
+      // uPlot only listens to the mouse; let a finger scrub the charts and the map marker too.
+      const over = u.over;
+      over.style.touchAction = "pan-y";
+      const touch = (e: TouchEvent) => {
+        const t = e.touches[0];
+        if (!t) return;
+        const r = over.getBoundingClientRect();
+        u.setCursor({ left: Math.min(Math.max(t.clientX - r.left, 0), r.width), top: t.clientY - r.top });
+      };
+      over.addEventListener("touchstart", touch, { passive: true });
+      over.addEventListener("touchmove", touch, { passive: true });
     });
 
     const ro = new ResizeObserver(() => {

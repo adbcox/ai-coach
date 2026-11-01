@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useWidth } from "../lib/useWidth";
 
 export interface Series { name: string; color: string; values: (number | null)[]; dashed?: boolean }
 
@@ -21,7 +22,8 @@ function nice(min: number, max: number): [number, number] {
 /** Line chart with gaps for missing days, optional shaded band, hover readout. */
 export default function TrendChart({ title, unit, days, series, band, decimals = 0, note }: Props) {
   const [hover, setHover] = useState<number | null>(null);
-  const W = 640, H = 220, padL = 44, padR = 14, padT = 22, padB = 28;
+  const [box, W] = useWidth(640);
+  const H = 220, padL = 44, padR = 14, padT = 22, padB = 28;
   const all = series.flatMap((s) => s.values).concat(band ? band.low.concat(band.high) : []).filter((v): v is number => v != null);
   if (all.length === 0) {
     return (
@@ -70,13 +72,15 @@ export default function TrendChart({ title, unit, days, series, band, decimals =
           ))}
         </span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="chart" role="img" aria-label={title}
-        onMouseMove={(e) => {
+      <div ref={box}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="chart" role="img" aria-label={title} style={{ touchAction: "pan-y" }}
+        onPointerMove={(e) => {
           const r = e.currentTarget.getBoundingClientRect();
           const px = ((e.clientX - r.left) / r.width) * W;
           setHover(Math.min(n - 1, Math.max(0, Math.round(((px - padL) / (W - padL - padR)) * (n - 1)))));
         }}
-        onMouseLeave={() => setHover(null)}>
+        onPointerDown={(e) => e.currentTarget.dispatchEvent(new PointerEvent("pointermove", { clientX: e.clientX, clientY: e.clientY, bubbles: true }))}
+        onPointerLeave={(e) => e.pointerType === "mouse" && setHover(null)}>
         {ticks.map((t) => (
           <g key={t}>
             <line x1={padL} x2={W - padR} y1={y(t)} y2={y(t)} className="grid" />
@@ -84,7 +88,7 @@ export default function TrendChart({ title, unit, days, series, band, decimals =
           </g>
         ))}
         <text x={2} y={11} className="tick big">{unit}</text>
-        {days.map((d, i) => (i % Math.ceil(n / 5) === 0 || i === n - 1) && (
+        {days.map((d, i) => (i % Math.ceil(n / Math.max(3, Math.floor(W / 110))) === 0 || i === n - 1) && (
           <text key={d} x={x(i)} y={H - 8} textAnchor={i === n - 1 ? "end" : "middle"} className="tick big">{label(i)}</text>
         ))}
         {band && <path d={bandPath()} fill="#2da44e" opacity={0.16}><title>{band.label}</title></path>}
@@ -97,6 +101,7 @@ export default function TrendChart({ title, unit, days, series, band, decimals =
         ))}
         {hover != null && <line x1={x(hover)} x2={x(hover)} y1={padT} y2={H - padB} stroke="currentColor" opacity={0.3} strokeDasharray="3 3" />}
       </svg>
+      </div>
       {(series.length > 1 || band) && (
         <div className="legend">
           {series.map((s) => <span key={s.name}><i style={{ background: s.color }} /> {s.name}</span>)}

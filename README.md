@@ -16,6 +16,7 @@ This project was largely written with AI assistance ("vibe-coded") and has not h
 
 ## Principles
 
+- **Open and explainable.** The point of the app is to give you tools to plan with that you can understand. Every number should show where it came from and how it was calculated, predictions should show their working and their uncertainty, and the science behind them should be cited.
 - **Self-contained, AI-optional.** One Docker container. Sync, storage, dashboard and ingest all work with no AI.
 - **Bring your own agent.** The same data and ingest area will be exposed through a REST API and an MCP server, so you can connect a local model, Claude, ChatGPT, Codex or anything else (roadmap v0.5).
 - **Public code, private data.** Your Garmin key, health data and ingested files stay on the server running your container, on a mounted volume. They are never in this repo (see `.gitignore`).
@@ -27,12 +28,13 @@ This project was largely written with AI assistance ("vibe-coded") and has not h
 - **Dashboard**: last 14 days of distance by sport, rolling weekly mileage (km per week) and rolling 7-day longest run, over the last 4 weeks. Opens on the sport you choose in Settings (Running by default).
 - **Activities and run detail**: filterable list; per-run map, pace/speed, heart rate (with zone bands), elevation, power and cadence charts linked to the map, heart-rate zone time, running dynamics, GPX download.
 - **Recovery**: sleep score and duration, HRV against your balanced range, resting heart rate, Body Battery and stress, 30 days to 1 year.
+- **On your phone**: the whole app works in a phone browser, with a bottom tab bar and charts you can scrub with a finger (an installable app comes later).
 - **Backups**: one-click portable backup and restore (move to a new machine), plus scheduled uploads to an SMB network share. Your Garmin key is encrypted at rest and never included in scheduled backups.
 - **Privacy tools**: a data-shapes export that describes the structure of your data (no names, places, ids, dates or body measurements) so problems can be debugged without sharing your data.
 
 ## Coming next
 
-1. Literature ingest: upload studies, videos and articles; kept as an actionable summary, full-text Markdown and the original source
+1. Race time predictions that show their working, and literature ingest: upload studies, videos and articles; kept as an actionable summary, full-text Markdown and the original source
 2. Heart-rate zones from your Garmin settings, a first training-load view, "rebuild from stored files"
 3. More data sources (Strava, COROS) with de-duplication
 4. Agent connectivity (REST + MCP) so any AI can read your data, then mobile layout and an installable web app
