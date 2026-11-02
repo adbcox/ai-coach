@@ -181,3 +181,9 @@ textarea.notes { width: 100%; min-height: 260px; font: 14px/1.5 ui-monospace, SF
 .lapbar .lapn { text-align: right; font-variant-numeric: tabular-nums; }
 .lapbar .lapfill { height: 14px; border-radius: 3px; min-width: 6px; display: block; }
 .lapbar .lapval { font-variant-numeric: tabular-nums; min-width: 78px; text-align: right; }
+
+/* Linked charts: exact values on hover */
+.plot-title { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.plot-readout { font-weight: 600; font-variant-numeric: tabular-nums; }
+.plot-tip { position: absolute; top: 6px; z-index: 20; pointer-events: none; white-space: nowrap; padding: 3px 9px; font-size: 13px; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+.plot-tip span { color: var(--muted); }

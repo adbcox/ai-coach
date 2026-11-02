@@ -44,23 +44,30 @@ export default function LinkedCharts({ data, running, onHover, zones = [] }: Pro
     const xLabel = useDist ? units.distance : "time";
     const speed = smooth(data.speed, 7);
 
-    interface Spec { title: string; values: (number | null)[]; stroke: string; invert?: boolean; bands?: boolean; fmt?: (v: number) => string }
+    interface Spec { title: string; values: (number | null)[]; stroke: string; invert?: boolean; bands?: boolean; fmt?: (v: number) => string; unit: string; dec: number }
     const specs: Spec[] = [];
     if (has(data.speed)) {
       if (running) {
         const paceMin = speed.map((s) => (s && s > 0.8 ? 1000 / s / 60 / distFactor() : null));
         specs.push({
-          title: `Pace (min/${units.distance})`, values: paceMin, stroke: "#1f6feb", invert: true,
-          fmt: (v) => `${Math.floor(v)}:${String(Math.round((v % 1) * 60)).padStart(2, "0")}`,
+          title: `Pace (min/${units.distance})`, values: paceMin, stroke: "#1f6feb", invert: true, unit: `/${units.distance}`, dec: 0,
+          fmt: (v) => {
+            const m = Math.floor(v), s = Math.round((v - m) * 60);
+            return s === 60 ? `${m + 1}:00` : `${m}:${String(s).padStart(2, "0")}`;
+          },
         });
       } else {
-        specs.push({ title: `Speed (${unitSpeed()})`, values: speed.map((s) => (s == null ? null : s * 3.6 * distFactor())), stroke: "#1f6feb" });
+        specs.push({ title: `Speed (${unitSpeed()})`, values: speed.map((s) => (s == null ? null : s * 3.6 * distFactor())), stroke: "#1f6feb", unit: unitSpeed(), dec: 1 });
       }
     }
-    if (has(data.hr)) specs.push({ title: "Heart rate (bpm)", values: smooth(data.hr, 5), stroke: "#cf222e", bands: zones.length > 0 });
-    if (has(data.alt)) specs.push({ title: `Elevation (${elevUnit()})`, values: data.alt.map((v) => (v == null ? null : v * elevFactor())), stroke: "#6e7781" });
-    if (has(data.power)) specs.push({ title: "Power (W)", values: smooth(data.power, 7), stroke: "#8250df" });
-    if (has(data.cadence)) specs.push({ title: "Cadence", values: smooth(data.cadence, 7), stroke: "#2da44e" });
+    if (has(data.hr)) specs.push({ title: "Heart rate (bpm)", values: smooth(data.hr, 5), stroke: "#cf222e", bands: zones.length > 0, unit: "bpm", dec: 0 });
+    if (has(data.alt)) specs.push({ title: `Elevation (${elevUnit()})`, values: data.alt.map((v) => (v == null ? null : v * elevFactor())), stroke: "#6e7781", unit: elevUnit(), dec: 1 });
+    if (has(data.power)) specs.push({ title: "Power (W)", values: smooth(data.power, 7), stroke: "#8250df", unit: "W", dec: 0 });
+    if (has(data.cadence)) {
+      // FIT files store running cadence as strides per minute (one foot); Garmin Connect shows steps per minute (both feet).
+      const mult = running ? 2 : 1;
+      specs.push({ title: running ? "Cadence (spm)" : "Cadence (rpm)", values: smooth(data.cadence, 7).map((v) => (v == null ? null : v * mult)), stroke: "#2da44e", unit: running ? "spm" : "rpm", dec: 0 });
+    }
 
     const plots: uPlot[] = [];
     const sync = uPlot.sync("run");
@@ -70,7 +77,12 @@ export default function LinkedCharts({ data, running, onHover, zones = [] }: Pro
       wrap.className = "plot";
       const label = document.createElement("div");
       label.className = "plot-title";
-      label.textContent = spec.title;
+      const titleText = document.createElement("span");
+      titleText.textContent = spec.title;
+      const readout = document.createElement("span");
+      readout.className = "plot-readout";
+      readout.style.color = spec.stroke;
+      label.append(titleText, readout);
       root.appendChild(wrap);
       wrap.appendChild(label);
       const target = document.createElement("div");
@@ -91,7 +103,8 @@ export default function LinkedCharts({ data, running, onHover, zones = [] }: Pro
         width,
         height: 140,
         legend: { show: false },
-        cursor: { sync: { key: sync.key }, points: { show: false } },
+        padding: [null, 28, null, null],   // same right padding on every chart so their plot areas (and cursor lines) line up
+        cursor: { sync: { key: sync.key }, points: { show: true, size: 8, width: 2, stroke: spec.stroke, fill: "#ffffff" } },
         scales: { x: { time: false }, y: spec.invert ? { dir: -1 } : {} },
         axes: [
           { show: idx === specs.length - 1, label: xLabel, stroke: "#8b949e", grid: { stroke: "rgba(128,128,128,.15)" },
@@ -122,6 +135,28 @@ export default function LinkedCharts({ data, running, onHover, zones = [] }: Pro
             : [],
           setCursor: [
             (u) => {
+              // exact value at the cursor: shown in every chart's title row, and as a pop-up on the chart being pointed at
+              const i = u.cursor.idx;
+              const v = i != null && i >= 0 ? spec.values[i] : null;
+              if (v == null || i == null) {
+                readout.textContent = "";
+                tip.style.display = "none";
+              } else {
+                const text = `${spec.fmt ? spec.fmt(v) : v.toFixed(spec.dec)} ${spec.unit}`;
+                readout.textContent = text;
+                const at = useDist ? `${x[i].toFixed(2)} ${units.distance}` : duration(x[i]);
+                if (hovering && u.cursor.left != null && u.cursor.left >= 0) {
+                  tip.innerHTML = "";
+                  const big = document.createElement("strong");
+                  big.textContent = text;
+                  const small = document.createElement("span");
+                  small.textContent = ` at ${at}`;
+                  tip.append(big, small);
+                  tip.style.display = "block";
+                  const w = tip.offsetWidth;
+                  tip.style.left = `${u.cursor.left + 14 + w > u.over.clientWidth ? u.cursor.left - 14 - w : u.cursor.left + 14}px`;
+                } else tip.style.display = "none";
+              }
               // linked charts also report "no point"; only a real index moves the map marker
               // (the marker is cleared on mouseleave below)
               if (u.cursor.idx != null && u.cursor.left != null && u.cursor.left >= 0) onHover(u.cursor.idx);
@@ -129,8 +164,17 @@ export default function LinkedCharts({ data, running, onHover, zones = [] }: Pro
           ],
         },
       };
+      let hovering = false;
+      const tip = document.createElement("div");
+      tip.className = "plot-tip";
+      tip.style.display = "none";
       const u = new uPlot(opts, [x, spec.values as number[]], target);
       plots.push(u);
+      u.over.appendChild(tip);
+      u.over.addEventListener("mouseenter", () => { hovering = true; });
+      u.over.addEventListener("mouseleave", () => { hovering = false; tip.style.display = "none"; });
+      u.over.addEventListener("touchstart", () => { hovering = true; }, { passive: true });
+      u.over.addEventListener("touchend", () => { hovering = false; tip.style.display = "none"; }, { passive: true });
       // uPlot only listens to the mouse; let a finger scrub the charts and the map marker too.
       const over = u.over;
       over.style.touchAction = "pan-y";

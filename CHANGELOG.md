@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.6.4
+
+Added
+- **Exact values on the activity charts.** Point at (or touch and drag along) any chart and a pop-up shows the exact value and where
+  you are in the run (e.g. "154 bpm at 7.44 mi"), with a marker on the line. The current value of every chart is also shown at the
+  right of its title, so one position reads pace, heart rate, elevation and cadence at once.
+
+Fixed
+- The charts now line up exactly (the last one was slightly narrower, so the cursor line sat in a different place on each chart).
+- **Cadence on running charts is now steps per minute** (e.g. 172 instead of 86), matching Garmin Connect and the laps table. Garmin's
+  file stores strides per minute (one foot); rides still show rpm.
+
 ## 0.6.3
 
 A roll-up so everything since 0.6.0 can be tested in one install. Nothing new beyond what is listed under 0.6.1 and 0.6.2:
