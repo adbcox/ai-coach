@@ -119,6 +119,10 @@ def make_router(lib: Library, get_conn, current_user) -> APIRouter:
         data = await body_bytes(request)
         return await run_in_threadpool(guard, lib.attach_file, item_id, filename[:200], data, conn=conn)
 
+    @r.post("/{item_id}/ocr")
+    def read_scan(item_id: str, conn=Depends(get_conn)) -> dict[str, Any]:
+        return guard(lib.retry_ocr, item_id, conn=conn)
+
     @r.post("/{item_id}/reconvert")
     def reconvert(item_id: str, conn=Depends(get_conn)) -> dict[str, Any]:
         return guard(lib.reconvert, item_id, conn=conn)

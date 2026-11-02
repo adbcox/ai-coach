@@ -3,7 +3,7 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from app import convert, fetch, library
+from app import convert, fetch, library, ocr
 from app.config import Settings
 from app.main import create_app
 from tests.pdfgen import make_pdf
@@ -45,11 +45,20 @@ def public_resolver(host: str) -> list[str]:
     return {"internal.example": ["10.1.2.3"], "loop.example": ["127.0.0.1"]}.get(host, ["93.184.216.34"])
 
 
+def fake_ocr(data, filename, *, langs="eng", progress=None):
+    """Stands in for Tesseract so the tests do not need it installed."""
+    if progress:
+        progress(1, 2)
+        progress(2, 2)
+    return ocr.OcrResult(markdown="*\u2014 page 1 \u2014*\n\n" + "Recognised words about training load and recovery in runners. " * 8,
+                         pages=2, confidence=91.4, low_pages=[2], engine="tesseract 5.test", chars=500)
+
+
 @pytest.fixture
 def lib_client(tmp_path):
     settings = Settings(data_dir=tmp_path, request_delay_s=0)
     app = create_app(settings, start_scheduler=False, library_transport=httpx.MockTransport(handler),
-                     library_resolver=public_resolver)
+                     library_resolver=public_resolver, library_options={"sync_jobs": True, "ocr_function": fake_ocr})
     with TestClient(app, headers={"X-Requested-With": "aec"}) as c:
         assert c.post("/api/setup", json={"username": "admin", "password": "correct horse battery"}).status_code == 200
         c.data_dir = tmp_path
@@ -85,7 +94,7 @@ def test_pdf_text_extraction_and_metadata():
     assert c.year == 2024
 
 
-def test_scanned_pdf_is_flagged_not_converted():
+def test_scanned_pdf_is_flagged_for_ocr_by_the_converter():
     c = convert.pdf_to_markdown(make_pdf([[""], [""]]))
     assert c.status == "needs_ocr" and "OCR" in c.message
 
@@ -164,10 +173,8 @@ def test_duplicate_upload_is_detected(lib_client):
     assert lib_client.get("/api/library").json()["total"] == 1
 
 
-def test_scanned_and_unsupported_files(lib_client):
-    r = up(lib_client, "scan.pdf", make_pdf([[""]])).json()
-    assert r["status"] == "needs_ocr"
-    bad = up(lib_client, "photo.jpg", b"\xff\xd8\xff")
+def test_unsupported_file_types_are_refused(lib_client):
+    bad = up(lib_client, "report.docx", b"PK\x03\x04")
     assert bad.status_code == 400 and "not supported" in bad.json()["detail"]
     assert up(lib_client, "empty.txt", b"").status_code == 400
 
@@ -251,14 +258,14 @@ def test_files_are_the_source_of_truth_rescan_and_inbox(lib_client):
     root = lib_client.data_dir / "ingest"
     (root / "2-fulltext" / "my-hand-written.md").write_text("# Hand written note\n\nPacing is a skill you can practise often.\n")
     (root / "inbox" / "dropped paper.pdf").write_bytes(make_pdf([GOOD_PDF_LINES]))
-    (root / "inbox" / "photo.jpg").write_bytes(b"\xff\xd8\xff")
+    (root / "inbox" / "report.docx").write_bytes(b"PK\x03\x04")
     r = lib_client.post("/api/library/rescan").json()
     assert r["converted"] >= 1
     items = {x["id"]: x for x in lib_client.get("/api/library").json()["items"]}
     assert "my-hand-written" in items and items["my-hand-written"]["title"] == "Hand written note"
     assert any(i.startswith("smith-2024") for i in items)
-    assert not (root / "inbox" / "dropped paper.pdf").exists() and (root / "inbox" / "photo.jpg.rejected").exists()
-    assert "photo.jpg.error.txt" in [p.name for p in (root / "inbox").iterdir()]
+    assert not (root / "inbox" / "dropped paper.pdf").exists() and (root / "inbox" / "report.docx.rejected").exists()
+    assert "report.docx.error.txt" in [p.name for p in (root / "inbox").iterdir()]
     (root / "2-fulltext" / "my-hand-written.md").unlink()
     lib_client.post("/api/library/rescan")
     assert "my-hand-written" not in {x["id"] for x in lib_client.get("/api/library").json()["items"]}

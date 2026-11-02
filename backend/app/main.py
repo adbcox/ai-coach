@@ -112,6 +112,7 @@ def create_app(
     library_transport: Any = None,
     library_resolver: Any = None,
     library_lookups: bool = True,
+    library_options: dict | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     db.init_db(settings.db_path)
@@ -126,7 +127,9 @@ def create_app(
     finally:
         _conn.close()
     lib = Library(settings.data_dir / "ingest", transport=library_transport,
-                  resolver=library_resolver or fetch.system_resolver, lookup_citations=library_lookups)
+                  resolver=library_resolver or fetch.system_resolver, lookup_citations=library_lookups,
+                  conn_factory=lambda: db.connect(settings.db_path), ocr_langs=os.environ.get("AEC_OCR_LANGS", "eng"),
+                  **(library_options or {}))
     lib.ensure_dirs()
     _conn = db.connect(settings.db_path)
     try:

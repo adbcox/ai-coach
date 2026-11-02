@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.6.2
+
+Added
+- **Scanned PDFs and pictures are read automatically (OCR).** No more "needs OCR" to deal with: drop a scan, a screenshot or a
+  photo of a page (.png, .jpg, .tif, .webp) and it is read in the background with Tesseract, page by page, with a live
+  "page 3 of 6" and the finished text appearing by itself. Everything runs on your server. Scans already in your Library
+  (such as an old paper that said "needs OCR") are picked up automatically after the update.
+- Every OCR'd item says so, shows its average confidence, lists any low-confidence pages, and warns that OCR can misread
+  digits, symbols and equations. Tested on a real 6-page scan (a 1981 journal article): 94% confidence, about 17 seconds in
+  total, and every table value checked against the original was read correctly; an exponent in an equation was misread, which is
+  exactly why the warning is there.
+
+Changed
+- **Much cleaner conversion of PDFs** (and OCR text): words split across lines ("monitor -" then "ing") are rejoined, hard line
+  breaks inside a paragraph are joined into real paragraphs, ligatures (fi, fl, ffi) and soft hyphens are normalised, and running
+  page headers and page numbers are removed. Words the document itself writes with a hyphen (high-intensity) keep it.
+- **Your existing papers are re-converted automatically** from their stored originals after the update, in the background. Your
+  tags, notes, details and "reviewed" flags are kept untouched. (This happens again only when the converter improves.)
+- The image grows by about 60 MB for Tesseract and the page renderer.
+
+Notes
+- Tables, figures, equations and two-column layouts still do not convert faithfully; a layout-aware converter is the next step for
+  those (it needs no AI). OCR language defaults to English (`AEC_OCR_LANGS`, e.g. `eng+fra`, needs the extra language data in the image).
+
 ## 0.6.1
 
 Added

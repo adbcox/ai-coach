@@ -2,7 +2,7 @@ import { ApiError } from "../api";
 
 export interface LibItem {
   id: string; title: string; authors: string[]; year: number | null; venue: string | null; doi: string | null; url: string | null;
-  ref_id: string | null; status: "converted" | "citation_only" | "needs_ocr" | "failed"; reviewed: boolean; evidence_type: string | null;
+  ref_id: string | null; status: "converted" | "ocr_pending" | "citation_only" | "needs_ocr" | "failed"; reviewed: boolean; progress?: { done: number; total: number } | null; ocr?: boolean; ocr_confidence?: number | null; evidence_type: string | null;
   tags: string[]; words: number | null; pages: number | null; added: string | null; message: string | null; notes_status: string | null;
   snippet?: string | null; duplicate?: boolean;
 }
@@ -16,9 +16,9 @@ export interface LibDetail extends LibItem {
 }
 
 export const STATUS_LABEL: Record<string, string> = {
-  converted: "converted", citation_only: "citation only", needs_ocr: "needs OCR", failed: "failed",
+  converted: "converted", ocr_pending: "reading scan\u2026", citation_only: "citation only", needs_ocr: "OCR needs a retry", failed: "failed",
 };
-export const STATUS_CLASS: Record<string, string> = { converted: "ok", citation_only: "muted", needs_ocr: "warn", failed: "bad" };
+export const STATUS_CLASS: Record<string, string> = { converted: "ok", ocr_pending: "warn", citation_only: "muted", needs_ocr: "warn", failed: "bad" };
 
 /** Send one file as the raw request body (no multipart), so there is no size limit beyond the server's. */
 export async function sendFile<T>(path: string, file: File, params: Record<string, string> = {}, method = "PUT"): Promise<T> {

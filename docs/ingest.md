@@ -2,13 +2,13 @@
 
 - Lives on the server's mounted volume (`data/ingest/`), **never in git and never in the Docker image**.
 - **Built in v0.6.0 as the Library** (the Library tab): conversion to Markdown with no AI, search, your own notes, citations.
-  Still to come: automatic distillation into `1-actionable/` (needs an AI connection) and OCR / YouTube (a heavier `full` image).
+  Scanned PDFs and pictures are read automatically with OCR (v0.6.2). Still to come: automatic distillation into `1-actionable/` (needs an AI connection), layout-aware tables, and YouTube transcripts (a heavier `full` image).
 
 ## What v0.6.0 does
 
 | You do | The app does |
 | --- | --- |
-| Drop one or many files on the Library page (PDF, `.html`, `.md`, `.txt`) | Keeps the original in `3-source/`, converts it to `2-fulltext/<id>.md` with a front-matter header (title, authors, year, DOI, converter, page and word counts), de-duplicates by file hash and DOI |
+| Drop one or many files on the Library page (PDF, scanned PDF, picture, `.html`, `.md`, `.txt`) | Keeps the original in `3-source/`, converts it to `2-fulltext/<id>.md` with a front-matter header (title, authors, year, DOI, converter, page and word counts), de-duplicates by file hash and DOI |
 | Paste a DOI | Looks up the citation on Crossref (only the DOI is sent) and saves a *citation only* entry you can attach the PDF to later |
 | Paste a link to an article or PDF | Downloads it (only public internet addresses are allowed), converts it with trafilatura or pypdf. Publisher pages that block automated downloads are reported, and you upload the PDF instead |
 | Type a citation | Saves a *citation only* entry |
@@ -17,19 +17,15 @@
 | Edit tags, evidence type, details | Rewrites the header of the Markdown file; the files stay the source of truth and the search index is rebuilt from them |
 | Search | Full-text search across titles, authors, tags, your notes and the paper text (SQLite FTS5) |
 
-Honest limits: PDF conversion is text extraction, so tables, figures, equations and two-column layouts can come out garbled. Scanned
-PDFs are kept and flagged *needs OCR* (no text is produced). The Library says so on every item, and keeps the original so a better
-converter can re-run later ("Convert again"). Page markers (`— page 3 —`) are inserted so a note can point to where a claim is.
+Cleaning and OCR (v0.6.2): PDF text arrives line by line as it was typeset, so the converter rejoins words split across lines, joins
+hard-wrapped lines into paragraphs, fixes ligatures and drops running headers and page numbers, all with plain rules (no AI, so it can
+never change a number). Scanned PDFs and pictures are read with Tesseract in the background, page by page, and every OCR'd item is
+labelled with its confidence. When the converter improves (`CONVERSION_VERSION` in `convert.py`), stored originals are re-converted
+automatically and everything you wrote (tags, notes, details, reviewed flag) is kept.
 
-Drop studies, videos, articles, coach methods and personal context here.
-Each source is kept in up to three forms, one folder per form, same
-base filename in each (e.g. `smith-2024-polarized-training`).
-
-| Folder | Contents | Purpose |
-| --- | --- | --- |
-| `1-actionable/` | Short distillation: only what changes training decisions | Agent reads this first, day to day |
-| `2-fulltext/` | Full, faithful Markdown conversion (all text, citation header) | Second stop: more context on a claim |
-| `3-source/` | Original files untouched (PDFs, transcripts, screenshots, exports) | Last resort + source of truth; conversions re-run from here |
+Honest limits: tables, figures, equations (an exponent can come out as a plain character) and two-column layouts do not convert
+faithfully, and OCR can misread digits and symbols. The Library says so on every item and keeps the original so a better converter
+can re-run later ("Convert again", "Read the scan again"). Page markers (`— page 3 —`) are inserted so a note can point to where a claim is.
 
 ## Retrieval order (how the model uses these)
 

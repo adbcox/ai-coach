@@ -12,8 +12,13 @@ from __future__ import annotations
 import io
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
+from . import reflow
+
+CONVERSION_VERSION = 2   # bump when conversion output improves; the Library then re-converts stored originals in the background
+IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".tif", ".tiff", ".webp", ".bmp")
 DOI_RE = re.compile(r"\b(10\.\d{4,9}/[^\s\"<>]+)", re.I)
 YEAR_RE = re.compile(r"\b(19[5-9]\d|20[0-4]\d)\b")
 _TRAILING = ".,;:)]}>'\""
@@ -52,30 +57,6 @@ def word_count(md: str) -> int:
     return len(re.findall(r"\w+", md))
 
 
-def _dehyphenate_and_paragraph(lines: list[str]) -> str:
-    """Rebuild paragraphs from the line-by-line text a PDF gives: join hyphenated line ends and put a blank
-    line after a short line that ends a sentence. Tables and figures will not convert faithfully."""
-    lines = [ln.rstrip() for ln in lines]
-    lens = sorted(len(ln) for ln in lines if ln.strip())
-    longest = lens[int(len(lens) * 0.9)] if lens else 0
-    out: list[str] = []
-    for i, ln in enumerate(lines):
-        if not ln.strip():
-            if out and out[-1] != "":
-                out.append("")
-            continue
-        nxt = lines[i + 1] if i + 1 < len(lines) else ""
-        if re.search(r"[A-Za-z]-$", ln) and nxt[:1].islower():
-            out.append(ln[:-1] + "​")  # marker: glue with the next line, no space
-            continue
-        out.append(ln)
-        if longest and len(ln) < 0.72 * longest and re.search(r"[.!?:]$", ln.strip()):
-            out.append("")
-    text = "\n".join(out)
-    text = re.sub(r"​\n", "", text)
-    return re.sub(r"\n{3,}", "\n\n", text).strip()
-
-
 def pdf_to_markdown(data: bytes) -> Converted:
     from pypdf import PdfReader
     from pypdf import __version__ as pypdf_version
@@ -112,13 +93,12 @@ def pdf_to_markdown(data: bytes) -> Converted:
         return res
 
     parts: list[str] = []
-    for n, text in enumerate(pages_text, 1):
-        body = _dehyphenate_and_paragraph(text.splitlines())
-        if body:
-            parts.append(f"*— page {n} —*\n\n{body}")
+    for n, paras in enumerate(reflow.pages_to_paragraphs(pages_text), 1):
+        if paras:
+            parts.append(f"*\u2014 page {n} \u2014*\n\n" + "\n\n".join(paras))
     res.markdown = "\n\n".join(parts)
 
-    first = pages_text[0] if pages_text else ""
+    first = reflow.normalize(pages_text[0]) if pages_text else ""
     res.doi = find_doi("\n".join(pages_text[:2]))
     if info is not None:
         t = str(info.get("/Title") or "").strip()
@@ -201,6 +181,10 @@ def convert(filename: str, data: bytes) -> tuple[Converted, str]:
         return text_to_markdown(data, markdown=True), ".md"
     if low.endswith((".txt", ".text")):
         return text_to_markdown(data, markdown=False), ".txt"
+    if low.endswith(IMAGE_EXTS):
+        stem = re.sub(r"[_-]+", " ", Path(filename).stem).strip()
+        return Converted(status="needs_ocr", pages=1, title=stem or None,
+                         message="This is a picture, so its text has to be read with OCR."), Path(filename).suffix.lower()
     return Converted(status="failed", message=(
         "This file type is not supported yet. Supported: PDF, web pages (.html), Markdown and text. "
-        "Images and scans need OCR, which is not included.")), ""
+        "Pictures (.png, .jpg, ...) and scanned PDFs are read with OCR.")), ""

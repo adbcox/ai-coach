@@ -32,14 +32,14 @@ This project was largely written with AI assistance ("vibe-coded") and has not h
 - **Race predictions**: 5K, 10K, half marathon and marathon from your own best efforts (hills and trail handled with grade-adjusted pace; treadmill included; mark real races to check the predictions against them), using several established methods side by side. Each number opens into the formula with your numbers filled in, the uncertainty, a back-test against your own history, and the sources. See [how it works](docs/predictions.md).
 - **Max heart rate and VO2max**: max heart rate estimated from your own recorded peaks (not a formula), and VO2max estimated several ways side by side, each with its working, range and limits.
 - **Recovery**: sleep score and duration, HRV against your balanced range, resting heart rate, Body Battery and stress, 30 days to 1 year.
-- **Library**: drop in PDFs, web pages, Markdown or text (many at once), paste links or DOIs, or type a citation. Each source becomes a Markdown file you can read in the app and on disk, with the original kept; search across the full text, tag and annotate, and write your own notes. No AI involved; your files stay on your server and are never part of the image or git. See [docs/ingest.md](docs/ingest.md).
+- **Library**: drop in PDFs (scanned ones are read with OCR), pictures, web pages, Markdown or text (many at once), paste links or DOIs, or type a citation. Each source becomes a Markdown file you can read in the app and on disk, with the original kept; search across the full text, tag and annotate, and write your own notes. No AI involved; your files stay on your server and are never part of the image or git. See [docs/ingest.md](docs/ingest.md).
 - **On your phone**: the whole app works in a phone browser, with a bottom tab bar and charts you can scrub with a finger (an installable app comes later).
 - **Backups**: one-click portable backup and restore (move to a new machine), plus scheduled uploads to an SMB network share. Your Garmin key is encrypted at rest and never included in scheduled backups.
 - **Privacy tools**: a data-shapes export that describes the structure of your data (no names, places, ids, dates or body measurements) so problems can be debugged without sharing your data.
 
 ## Coming next
 
-1. AI distillation of your Library into short, cited, reviewable notes (needs an AI connection), and OCR / video transcripts in a heavier image
+1. AI distillation of your Library into short, cited, reviewable notes (needs an AI connection), layout-aware tables, and video transcripts in a heavier image
 2. Heart-rate zones from your Garmin settings, a first training-load view, "rebuild from stored files"
 3. More data sources (Strava, COROS) with de-duplication
 4. Agent connectivity (REST + MCP) so any AI can read your data, then mobile layout and an installable web app

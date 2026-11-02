@@ -29,6 +29,11 @@ export default function LibraryItem({ id }: { id: string }) {
   }, []);
   const load = useCallback(() => { api<LibDetail>(`/library/${id}`).then(apply).catch((e) => setError(e.message)); }, [id, apply]);
   useEffect(() => { setItem(null); setError(""); load(); }, [load]);
+  useEffect(() => {   // a scan being read: keep checking until it is done
+    if (item?.status !== "ocr_pending") return;
+    const t = window.setInterval(load, 3000);
+    return () => window.clearInterval(t);
+  }, [item?.status, load]);
   useEffect(() => {
     api<LibList>("/library").then(setMeta).catch(() => undefined);
     api<{ references: Reference[] }>("/references").then((r) => setRefs(r.references)).catch(() => undefined);
@@ -65,6 +70,11 @@ export default function LibraryItem({ id }: { id: string }) {
     try { await api(`/library/${id}/reconvert`, "POST"); load(); } catch (e) { setFormMsg((e as Error).message); }
     setBusy("");
   }
+  async function readScan() {
+    setBusy("Starting OCR\u2026");
+    try { await api(`/library/${id}/ocr`, "POST"); load(); } catch (e) { setFormMsg((e as Error).message); setTab("details"); }
+    setBusy("");
+  }
   async function remove() {
     if (!window.confirm("Delete this source, your notes on it and the original file from the server? This cannot be undone.")) return;
     try { await api(`/library/${id}`, "DELETE"); window.location.hash = "#/library"; } catch (e) { setFormMsg((e as Error).message); }
@@ -84,13 +94,15 @@ export default function LibraryItem({ id }: { id: string }) {
           {item.ref_id && <a href={`#/references/${item.ref_id}`}>cited by the app</a>}
           {doiLink && <a href={doiLink} target="_blank" rel="noreferrer noopener">{item.doi ? `doi:${item.doi}` : "link"}</a>}
         </span>
-        {item.message && <span className={item.status === "converted" ? "muted" : "error"}>{item.message}</span>}
+        {item.status === "ocr_pending" && <span role="status">Reading the scanned pages{item.progress && item.progress.total > 0 ? `: page ${item.progress.done} of ${item.progress.total}` : ""}. This can take a few seconds per page and the page updates by itself.</span>}
+        {item.message && item.status !== "ocr_pending" && <span className={item.ocr ? "warn-text" : item.status === "converted" ? "muted" : "error"}>{item.message}</span>}
         <span className="muted">
-          {item.status === "converted" ? `Converted with ${item.converter ?? "a text extractor"}${item.pages ? ` from ${item.pages} ${item.pages === 1 ? "page" : "pages"}` : ""} (${(item.words ?? 0).toLocaleString()} words). Automatic conversion can garble tables, figures, symbols and numbers: check the original before relying on a number.` : ""}
+          {item.status === "converted" && !item.ocr ? `Converted with ${item.converter ?? "a text extractor"}${item.pages ? ` from ${item.pages} ${item.pages === 1 ? "page" : "pages"}` : ""} (${(item.words ?? 0).toLocaleString()} words). Automatic conversion can garble tables, figures, symbols and numbers: check the original before relying on a number.` : ""}
         </span>
         <div className="row">
           {item.has_source && <a className="button" href={`/api/library/${id}/source`}>Download original</a>}
           {item.has_source && <button onClick={reconvert} disabled={!!busy}>Convert again</button>}
+          {item.has_source && (item.status === "needs_ocr" || item.ocr) && <button onClick={readScan} disabled={!!busy}>Read the scan again (OCR)</button>}
           <label className="button" style={{ cursor: "pointer" }}>{item.status === "converted" ? "Replace the file" : "Attach the full text"}
             <input type="file" hidden accept=".pdf,.html,.htm,.md,.markdown,.txt" onChange={(e) => { const f = e.target.files?.[0]; if (f) void attach(f); e.target.value = ""; }} />
           </label>

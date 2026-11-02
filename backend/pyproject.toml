@@ -17,6 +17,9 @@ dependencies = [
     "smbprotocol>=1.13",
     "pypdf>=5",
     "trafilatura>=2.0",
+    "pypdfium2>=4",
+    "pytesseract>=0.3.10",
+    "pillow>=10.1",
 ]
 
 [project.optional-dependencies]

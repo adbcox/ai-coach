@@ -24,15 +24,15 @@ from typing import Any
 
 import httpx
 
-from . import convert, fetch
+from . import convert, fetch, ocr
 
 TIERS = ("1-actionable", "2-fulltext", "3-source", "inbox")
-STATUSES = ("converted", "citation_only", "needs_ocr", "failed")
+STATUSES = ("converted", "ocr_pending", "citation_only", "needs_ocr", "failed")
 EVIDENCE_TYPES = ["RCT", "meta-analysis", "systematic review", "review", "observational", "laboratory study",
                   "guideline", "coach opinion", "book", "other"]
 EDITABLE = ("title", "authors", "year", "venue", "doi", "url", "ref_id", "evidence_type", "reviewed", "tags", "notes")
 KEY_ORDER = ["id", "title", "authors", "year", "venue", "doi", "url", "ref_id", "added", "source", "sha256",
-             "converter", "pages", "words", "status", "message", "evidence_type", "reviewed", "tags", "notes"]
+             "converter", "conv_ver", "ocr", "ocr_confidence", "ocr_tried", "pages", "words", "status", "message", "evidence_type", "reviewed", "tags", "notes"]
 MAX_UPLOAD = 80 * 1024 * 1024
 
 ACTIONABLE_TEMPLATE = """## Items
@@ -142,7 +142,17 @@ def _atomic_write(path: Path, data: bytes | str) -> None:
 
 class Library:
     def __init__(self, root: Path, *, transport: httpx.BaseTransport | None = None,
-                 resolver: fetch.Resolver = fetch.system_resolver, lookup_citations: bool = True) -> None:
+                 resolver: fetch.Resolver = fetch.system_resolver, lookup_citations: bool = True,
+                 conn_factory: Any = None, ocr_langs: str = "eng", ocr_function: Any = None, sync_jobs: bool = False) -> None:
+        self.conn_factory = conn_factory          # opens a database connection for background work
+        self.ocr_langs = ocr_langs
+        self.ocr_function = ocr_function          # tests replace the real OCR engine
+        self.sync_jobs = sync_jobs                # tests run background jobs inline
+        self.progress: dict[str, dict[str, int]] = {}
+        self._jobs: list[tuple[str, str]] = []
+        self._queued: set[tuple[str, str]] = set()
+        self._jobs_lock = threading.Lock()
+        self._worker: threading.Thread | None = None
         self.root = Path(root)
         self.transport = transport
         self.resolver = resolver
@@ -244,6 +254,7 @@ class Library:
                 changed += 1
             self.write_index_md(conn)
             conn.commit()
+            self._queue_pending_work()
             return {"converted": made, "reindexed": changed}
 
     def _ensure_front_matter(self, item_id: str) -> None:
@@ -304,7 +315,7 @@ class Library:
         meta.setdefault("status", "converted")
         meta.setdefault("tags", [])
         meta.setdefault("authors", [])
-        out = {**meta, "has_source": bool(self.source_files(item_id)),
+        out = {**meta, "progress": self.progress.get(item_id), "has_source": bool(self.source_files(item_id)),
                "source_ext": self.source_files(item_id)[0].suffix if self.source_files(item_id) else None,
                "actionable": self.read_actionable(item_id)}
         if with_body:
@@ -357,9 +368,15 @@ class Library:
             "id": item_id, "title": c.title or Path(filename).stem, "authors": c.authors, "year": c.year, "venue": c.venue,
             "doi": c.doi, "url": url or c.url, "ref_id": ref_id, "added": date.today().isoformat(),
             "source": f"3-source/{source_name or (item_id + ext)}", "sha256": hashlib.sha256(data).hexdigest(),
-            "converter": c.converter, "pages": c.pages, "words": convert.word_count(c.markdown), "status": c.status,
+            "converter": c.converter, "conv_ver": convert.CONVERSION_VERSION, "pages": c.pages,
+            "words": convert.word_count(c.markdown), "status": c.status,
             "message": c.message or None, "reviewed": False, "tags": [],
         }
+        if c.status == "needs_ocr":
+            if self.ocr_ready():
+                meta["status"], meta["message"] = "ocr_pending", "Reading the scanned pages (OCR) in the background\u2026"
+            else:
+                meta["message"] = (c.message + " OCR is not available in this installation.").strip()
         if keep:
             meta.update({k: v for k, v in keep.items() if v not in (None, "", [])})
             meta["id"] = item_id
@@ -367,7 +384,145 @@ class Library:
             _atomic_write(self.dir("3-source") / f"{item_id}{ext}", data)
         body = c.markdown if c.markdown else (f"*{c.message}*\n" if c.message else "")
         _atomic_write(self.ft_path(item_id), dump_front_matter(meta) + "\n" + body + ("\n" if body and not body.endswith("\n") else ""))
+        if meta["status"] == "ocr_pending":
+            self.queue("ocr", item_id)
         return meta
+
+    # -- background work: OCR of scans and re-conversion when the converter improves ---------------------------------
+    def ocr_ready(self) -> bool:
+        return self.ocr_function is not None or ocr.available()
+
+    def queue(self, kind: str, item_id: str) -> None:
+        key = (kind, item_id)
+        with self._jobs_lock:
+            if key in self._queued:
+                return
+            self._queued.add(key)
+            self._jobs.append(key)
+            if not self.sync_jobs and (self._worker is None or not self._worker.is_alive()):
+                self._worker = threading.Thread(target=self._work, daemon=True, name="library-jobs")
+                self._worker.start()
+        if self.sync_jobs:
+            self._work()
+
+    def _work(self) -> None:
+        while True:
+            with self._jobs_lock:
+                if not self._jobs:
+                    return
+                kind, item_id = self._jobs.pop(0)
+            conn = self.conn_factory() if self.conn_factory else None
+            try:
+                if conn is not None:
+                    self._run_job(kind, item_id, conn)
+            except Exception:  # one bad file must not stop the rest of the queue
+                pass
+            finally:
+                if conn is not None:
+                    conn.close()
+                with self._jobs_lock:
+                    self._queued.discard((kind, item_id))
+                self.progress.pop(item_id, None)
+
+    def _run_job(self, kind: str, item_id: str, conn: sqlite3.Connection) -> None:
+        if not self.ft_path(item_id).exists():
+            return
+        if kind == "reconvert":
+            try:
+                self.reconvert(item_id, conn=conn)
+            except LibraryError:
+                self._set_fields(item_id, {"conv_ver": convert.CONVERSION_VERSION})   # do not try again until the converter changes
+                self.index_item(conn, item_id)
+                conn.commit()
+        elif kind == "ocr":
+            self._run_ocr(item_id, conn)
+
+    def _set_fields(self, item_id: str, fields: dict[str, Any], drop: tuple[str, ...] = ()) -> None:
+        with self.lock:
+            meta, body = parse_front_matter(self.ft_path(item_id).read_text("utf-8", errors="replace"))
+            for k in drop:
+                meta.pop(k, None)
+            meta.update({k: v for k, v in fields.items() if v is not None})
+            _atomic_write(self.ft_path(item_id), dump_front_matter(meta) + "\n" + body)
+
+    def _run_ocr(self, item_id: str, conn: sqlite3.Connection) -> None:
+        files = self.source_files(item_id)
+        if not files:
+            return
+        meta, _ = parse_front_matter(self.ft_path(item_id).read_text("utf-8", errors="replace"))
+        self.progress[item_id] = {"done": 0, "total": int(meta.get("pages") or 0)}
+
+        def report(done: int, total: int) -> None:
+            self.progress[item_id] = {"done": done, "total": total}
+
+        engine = self.ocr_function or ocr.ocr_document
+        try:
+            res = engine(files[0].read_bytes(), files[0].name, langs=self.ocr_langs, progress=report)
+        except ocr.OcrError as e:
+            self._set_fields(item_id, {"status": "needs_ocr", "ocr_tried": True, "conv_ver": convert.CONVERSION_VERSION,
+                                       "message": f"OCR could not read this file: {e}"})
+        else:
+            if res.chars < 150:
+                self._set_fields(item_id, {"status": "needs_ocr", "ocr_tried": True, "conv_ver": convert.CONVERSION_VERSION,
+                                           "message": "OCR found almost no readable text (blank, very faint or handwritten pages). "
+                                                      "The original is kept."})
+            else:
+                conf = round(res.confidence) if res.confidence is not None else None
+                note = (f"Text read by OCR{f' (average confidence {conf}%)' if conf is not None else ''}. OCR can misread digits, "
+                        "symbols and tables: check any number against the original.")
+                if res.low_pages:
+                    note += " Low-confidence pages: " + ", ".join(map(str, res.low_pages)) + "."
+                fields: dict[str, Any] = {"status": "converted", "ocr": True, "ocr_confidence": conf, "pages": res.pages,
+                                          "words": convert.word_count(res.markdown), "message": note,
+                                          "converter": f"{res.engine} (OCR) with pypdfium2", "conv_ver": convert.CONVERSION_VERSION}
+                doi = convert.find_doi(res.markdown[:8000])
+                if doi and not meta.get("doi"):
+                    fields["doi"] = doi
+                    rec = fetch.crossref_record(doi, transport=self.transport) if self.lookup_citations else None
+                    if rec:
+                        for k in ("authors", "year", "venue"):
+                            if not meta.get(k) and rec.get(k):
+                                fields[k] = rec[k]
+                with self.lock:
+                    cur, _ = parse_front_matter(self.ft_path(item_id).read_text("utf-8", errors="replace"))
+                    cur.pop("ocr_tried", None)
+                    cur.update({k: v for k, v in fields.items() if v is not None})
+                    _atomic_write(self.ft_path(item_id), dump_front_matter(cur) + "\n" + res.markdown + "\n")
+        self.index_item(conn, item_id)
+        self.write_index_md(conn)
+        conn.commit()
+
+    def retry_ocr(self, item_id: str, *, conn: sqlite3.Connection) -> dict[str, Any]:
+        self._valid_id(item_id)
+        if not self.ocr_ready():
+            raise LibraryError("OCR is not available in this installation.")
+        if not self.source_files(item_id):
+            raise LibraryError("There is no original file to read.")
+        self._set_fields(item_id, {"status": "ocr_pending", "message": "Reading the scanned pages (OCR) in the background\u2026"},
+                         drop=("ocr_tried",))
+        self.index_item(conn, item_id)
+        conn.commit()
+        self.queue("ocr", item_id)
+        return self.get(item_id, with_body=False)
+
+    def _queue_pending_work(self) -> None:
+        """After a scan: queue interrupted or never-tried OCR, and re-conversion of items made by an older converter."""
+        for p in sorted(self.dir("2-fulltext").glob("*.md")):
+            item_id = p.stem
+            src = self.source_files(item_id)
+            if not src or not re.fullmatch(r"[a-z0-9][a-z0-9._-]{0,120}", item_id):
+                continue
+            head = p.read_text("utf-8", errors="replace")[:4000]
+            meta, _ = parse_front_matter(head + "\n---\n") if head.startswith("---") else ({}, "")
+            status = meta.get("status")
+            stale = _int(meta.get("conv_ver")) is None or (_int(meta.get("conv_ver")) or 1) < convert.CONVERSION_VERSION
+            if status == "ocr_pending" and self.ocr_ready():
+                self.queue("ocr", item_id)
+            elif status == "needs_ocr" and self.ocr_ready() and not meta.get("ocr_tried"):
+                self._set_fields(item_id, {"status": "ocr_pending", "message": "Reading the scanned pages (OCR) in the background\u2026"})
+                self.queue("ocr", item_id)
+            elif stale and src[0].suffix.lower() in (".pdf", ".html") and status in ("converted", "needs_ocr", "failed"):
+                self.queue("reconvert", item_id)
 
     def ingest_bytes(self, filename: str, data: bytes, *, ref_id: str | None = None, url: str | None = None,
                      conn: sqlite3.Connection | None = None, conv: convert.Converted | None = None) -> dict[str, Any]:
@@ -590,6 +745,7 @@ class Library:
             d["authors"] = [a for a in (d["authors"] or "").split(" ; ") if a]
             d["reviewed"] = bool(d["reviewed"])
             d["snippet"] = snippets.get(d["id"])
+            d["progress"] = self.progress.get(d["id"])
             out.append(d)
         if snippets:
             order = {k: i for i, k in enumerate(snippets)}

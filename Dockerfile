@@ -19,6 +19,11 @@ ENV PYTHONUNBUFFERED=1 \
     PORT=26219 \
     AEC_BUILD=${GIT_SHA}
 WORKDIR /app
+# Tesseract reads scanned PDFs and pictures (OCR) for the Library; it runs on your server and sends nothing anywhere.
+# Extra languages: add tesseract-ocr-<lang> here and set AEC_OCR_LANGS (e.g. eng+fra).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng \
+    && rm -rf /var/lib/apt/lists/*
 COPY backend/ /app/backend/
 RUN pip install /app/backend && rm -rf /app/backend
 COPY --from=web /web/dist /app/static
@@ -31,6 +36,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \
   CMD python -c "import os,urllib.request;urllib.request.urlopen('http://127.0.0.1:%s/api/health'%os.environ.get('PORT','26219'),timeout=4)"
 CMD ["python", "-m", "app"]
 
-# Future: a `full` target extending `slim` with heavier converters (OCR via Docling,
-# YouTube transcripts; CPU-only PyTorch). The slim image already converts PDFs, web
-# pages, Markdown and text (pypdf, trafilatura) since v0.6.0.
+# Future: a `full` target extending `slim` with heavier converters (layout-aware tables via Docling,
+# YouTube transcripts; CPU-only PyTorch). The slim image already converts PDFs, web pages, Markdown and
+# text (pypdf, trafilatura) and reads scans and pictures with OCR (Tesseract).

@@ -16,6 +16,8 @@ function ItemRow({ it }: { it: LibItem }) {
         {it.reviewed && <span className="badge ok">reviewed</span>}
         {it.notes_status && <span className="badge muted">notes: {it.notes_status}</span>}
         {it.ref_id && <span className="badge muted">cited by the app</span>}
+        {it.progress && it.progress.total > 0 && <span className="muted">page {it.progress.done} of {it.progress.total}</span>}
+        {it.ocr && <span className="badge muted">read by OCR{it.ocr_confidence ? ` ${it.ocr_confidence}%` : ""}</span>}
         {it.words ? <span className="muted">{it.words.toLocaleString()} words{it.pages ? ` · ${it.pages} ${it.pages === 1 ? "page" : "pages"}` : ""}</span> : null}
       </span>
       {it.tags.length > 0 && <span className="tags">{it.tags.map((t) => <span key={t} className="tag">{t}</span>)}</span>}
@@ -47,6 +49,11 @@ export default function Library() {
     api<LibList>(`/library?${p}`).then(setData).catch((e) => setError(e.message));
   }, [q, tag, filter]);
   useEffect(() => { window.clearTimeout(timer.current); timer.current = window.setTimeout(load, q ? 250 : 0); return () => window.clearTimeout(timer.current); }, [load, q]);
+  useEffect(() => {   // while scans are being read, refresh so the progress and the finished text appear by themselves
+    if (!data?.items.some((i) => i.status === "ocr_pending")) return;
+    const t = window.setInterval(load, 3000);
+    return () => window.clearInterval(t);
+  }, [data, load]);
   useEffect(() => { api<{ references: RefWithCopy[] }>("/references").then((r) => setRefs(r.references)).catch(() => undefined); }, [data?.total]);
 
   async function uploadAll(files: FileList | File[], refId?: string) {
@@ -112,8 +119,8 @@ export default function Library() {
         <h3 style={{ margin: 0 }}>Add sources</h3>
         <label className={`drop ${over ? "over" : ""}`} onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)} onDrop={onDrop}>
           <strong>Drop files here, or tap to choose</strong>
-          <span>PDF, web page (.html), Markdown or text. Pick as many as you like.</span>
-          <input type="file" multiple accept=".pdf,.html,.htm,.md,.markdown,.txt,application/pdf,text/*" onChange={(e) => { if (e.target.files) void uploadAll(e.target.files); e.target.value = ""; }} />
+          <span>PDF (scanned ones are read with OCR), pictures, web pages, Markdown or text. Pick as many as you like.</span>
+          <input type="file" multiple accept=".pdf,.html,.htm,.md,.markdown,.txt,.png,.jpg,.jpeg,.tif,.tiff,.webp,application/pdf,text/*,image/*" onChange={(e) => { if (e.target.files) void uploadAll(e.target.files); e.target.value = ""; }} />
         </label>
         <form className="row" onSubmit={addLink}>
           <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="Paste a link or a DOI (e.g. 10.1249/MSS.0000000000000939)" aria-label="Link or DOI" />
@@ -155,7 +162,7 @@ export default function Library() {
                 {r.error ? <><span className="badge bad">not added</span><span className="error">{r.name}: {r.error}</span></> : r.item && (
                   <><span className={`badge ${r.item.duplicate ? "muted" : STATUS_CLASS[r.item.status]}`}>{r.item.duplicate ? "already in library" : STATUS_LABEL[r.item.status]}</span>
                     <a href={`#/library/${r.item.id}`}>{r.item.title}</a>
-                    {r.item.status === "needs_ocr" && <span className="muted">scanned pages: original kept, no text yet</span>}</>
+                    {r.item.status === "ocr_pending" && <span className="muted">reading the scanned pages now; this page updates by itself</span>}</>
                 )}
               </div>
             ))}
@@ -196,7 +203,7 @@ export default function Library() {
             <span className="row" style={{ alignItems: "center", gap: 6 }}>
               {r.your_copy ? <a href={`#/library/${r.your_copy.id}`}>Open your copy ({STATUS_LABEL[r.your_copy.status]})</a> : (
                 <label className="button" style={{ cursor: "pointer" }}>Attach my copy
-                  <input type="file" hidden accept=".pdf,.html,.htm,.md,.markdown,.txt" onChange={(e) => { if (e.target.files) void uploadAll(e.target.files, r.id); e.target.value = ""; }} />
+                  <input type="file" hidden accept=".pdf,.html,.htm,.md,.markdown,.txt,.png,.jpg,.jpeg,.tif,.tiff,.webp" onChange={(e) => { if (e.target.files) void uploadAll(e.target.files, r.id); e.target.value = ""; }} />
                 </label>
               )}
               <a href={`#/references/${r.id}`}>how the app uses it</a>

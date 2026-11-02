@@ -9,6 +9,9 @@ This repo is MIT; everything below is permissive, so MIT stays.
 | markitdown | Office/HTML conversion | MIT |
 | trafilatura | Article extraction (built in, v0.6.0) | Apache-2.0 |
 | pypdf | PDF text extraction (built in, v0.6.0) | BSD-3-Clause |
+| Tesseract (system package) + pytesseract | OCR of scans and pictures (built in, v0.6.2) | Apache-2.0 |
+| pypdfium2 | Draws PDF pages for OCR (v0.6.2) | BSD-3-Clause / Apache-2.0 (PDFium) |
+| Pillow | Image handling (v0.6.2) | HPND (permissive) |
 | youtube-transcript-api | YouTube captions | MIT |
 | yt-dlp | Subtitles / audio download | Unlicense |
 | faster-whisper | Local transcription (optional) | MIT |
