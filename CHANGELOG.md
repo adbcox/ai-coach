@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.3
+
+A roll-up so everything since 0.6.0 can be tested in one install. Nothing new beyond what is listed under 0.6.1 and 0.6.2:
+- **Laps (Garmin's splits)** on every activity page (0.6.1): the 1 km automatic laps, manual laps or workout steps with time, pace,
+  heart rate, elevation, cadence and power, filled in for your existing activities from the files already on your server.
+- **Automatic OCR** for scanned PDFs and pictures, and **much cleaner PDF text** (0.6.2), with your existing papers re-converted
+  automatically.
+
 ## 0.6.2
 
 Added
