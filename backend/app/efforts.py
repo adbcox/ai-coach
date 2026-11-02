@@ -12,7 +12,7 @@ import threading
 from datetime import UTC, datetime
 from typing import Any
 
-from . import db
+from . import db, laps
 
 EFFORT_VERSION = 3  # bump when the algorithm changes; activities are then re-scanned
 MARATHON = 42195.0
@@ -262,6 +262,7 @@ class EffortScanner:
                 for aid in ids:
                     scan_activity(conn, aid)
                     self.done += 1
+                laps.scan_pending(conn, self.settings)  # laps for activities stored before they were kept
             finally:
                 conn.close()
         finally:

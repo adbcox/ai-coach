@@ -25,6 +25,7 @@ from . import (
     diagnostics,
     efforts,
     fetch,
+    laps,
     maxhr,
     predict,
     recovery,
@@ -662,6 +663,13 @@ def create_app(
             out["summary"] = None
         out["is_race"] = conn.execute("SELECT 1 FROM race_marks WHERE activity_id=?", (activity_id,)).fetchone() is not None
         return out
+
+    @app.get("/api/activities/{activity_id}/laps")
+    def activity_laps(activity_id: int, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
+        row = get_activity(conn, activity_id)
+        if conn.execute("SELECT 1 FROM lap_scan WHERE activity_id=? AND version=?", (activity_id, laps.LAP_VERSION)).fetchone() is None:
+            laps.scan_one(conn, settings, row["id"])  # one FIT file: quick, and means the page never has to wait for the background pass
+        return laps.get_laps(conn, activity_id)
 
     @app.get("/api/activities/{activity_id}/samples")
     def activity_samples(activity_id: int, max_points: int = 1500, _=Depends(current_user),

@@ -32,6 +32,57 @@ class Sample:
 
 
 @dataclass
+class Lap:
+    """One FIT lap message: what Garmin Connect shows as a split (automatic by distance, manual, or a workout step)."""
+    index: int
+    start_t: int | None = None
+    elapsed_s: float | None = None
+    timer_s: float | None = None
+    distance_m: float | None = None
+    avg_speed: float | None = None
+    max_speed: float | None = None
+    avg_hr: float | None = None
+    max_hr: float | None = None
+    ascent_m: float | None = None
+    descent_m: float | None = None
+    avg_cadence: float | None = None   # as stored in FIT: strides per minute for running (one foot)
+    avg_power: float | None = None
+    trigger: str | None = None
+    intensity: str | None = None
+
+
+def _lap_from_frame(frame: Any, index: int) -> Lap:
+    start = _utc(_get(frame, "start_time"))
+    dist = _num(_get(frame, "total_distance"))
+    timer = _num(_get(frame, "total_timer_time"))
+    speed = _num(_get(frame, "enhanced_avg_speed", "avg_speed"))
+    if speed is None and dist and timer:
+        speed = dist / timer
+    trig, inten = _get(frame, "lap_trigger"), _get(frame, "intensity")
+    return Lap(
+        index=index, start_t=int(start.timestamp()) if start else None,
+        elapsed_s=_num(_get(frame, "total_elapsed_time")), timer_s=timer, distance_m=dist, avg_speed=speed,
+        max_speed=_num(_get(frame, "enhanced_max_speed", "max_speed")),
+        avg_hr=_num(_get(frame, "avg_heart_rate")), max_hr=_num(_get(frame, "max_heart_rate")),
+        ascent_m=_num(_get(frame, "total_ascent")), descent_m=_num(_get(frame, "total_descent")),
+        avg_cadence=_num(_get(frame, "avg_cadence")), avg_power=_num(_get(frame, "avg_power")),
+        trigger=str(trig) if trig is not None else None, intensity=str(inten) if inten is not None else None)
+
+
+def parse_laps(data: bytes) -> list[Lap]:
+    """Only the lap messages of a FIT file (used to backfill activities that were stored before laps were kept)."""
+    laps: list[Lap] = []
+    try:
+        with fitdecode.FitReader(io.BytesIO(data)) as reader:
+            for frame in reader:
+                if isinstance(frame, fitdecode.FitDataMessage) and frame.name == "lap":
+                    laps.append(_lap_from_frame(frame, len(laps)))
+    except (fitdecode.FitError, EOFError, ValueError) as exc:
+        raise FitError(f"Could not parse FIT file: {exc}") from exc
+    return laps
+
+
+@dataclass
 class ParsedActivity:
     sport: str | None = None
     start_time: datetime | None = None
@@ -41,6 +92,7 @@ class ParsedActivity:
     avg_hr: float | None = None
     max_hr: float | None = None
     samples: list[Sample] = field(default_factory=list)
+    laps: list[Lap] = field(default_factory=list)
 
 
 def extract_fit(zip_bytes: bytes) -> bytes:
@@ -116,6 +168,8 @@ def parse_fit(data: bytes) -> ParsedActivity:
                         speed=_num(_get(frame, "enhanced_speed", "speed")),
                         dist=_num(_get(frame, "distance")),
                     ))
+                elif frame.name == "lap":
+                    out.laps.append(_lap_from_frame(frame, len(out.laps)))
                 elif frame.name == "session" and not session:
                     for key in ("sport", "start_time", "total_distance", "total_timer_time",
                                 "total_elapsed_time", "total_ascent", "avg_heart_rate",

@@ -4,6 +4,7 @@ import LinkedCharts, { HrZone, ZONE_COLORS } from "../components/LinkedCharts";
 import RunMap from "../components/RunMap";
 import { duration, elevation, km, kmh, pace, sportGroup, unitDist, unitSpeed } from "../lib/format";
 import { useUnits } from "../lib/units";
+import Laps from "../components/Laps";
 
 function ZoneBars({ summary }: { summary: Record<string, unknown> }) {
   const zones = [1, 2, 3, 4, 5].map((z) => num(summary[`hrTimeInZone_${z}`]) ?? 0);
@@ -110,6 +111,8 @@ export default function ActivityDetail({ id, back }: { id: number; back: () => v
       </div>
 
       <ZoneBars summary={s} />
+
+      <Laps activityId={id} running={running} />
 
       {!samples && <p className="muted">Loading track…</p>}
       {samples && samples.t.length === 0 && (

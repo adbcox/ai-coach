@@ -174,3 +174,10 @@ details.card > summary { padding: 2px 0; }
 .md code, .md pre { background: color-mix(in srgb, var(--muted) 14%, transparent); border-radius: 4px; } .md code { padding: 0 4px; } .md pre { padding: 8px; overflow-x: auto; }
 textarea.notes { width: 100%; min-height: 260px; font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); resize: vertical; }
 .ok-text { color: #1a7f37; }
+
+/* Laps */
+.lapbars { display: grid; gap: 3px; }
+.lapbar { display: grid; grid-template-columns: 28px 1fr auto; gap: 8px; align-items: center; }
+.lapbar .lapn { text-align: right; font-variant-numeric: tabular-nums; }
+.lapbar .lapfill { height: 14px; border-radius: 3px; min-width: 6px; display: block; }
+.lapbar .lapval { font-variant-numeric: tabular-nums; min-width: 78px; text-align: right; }

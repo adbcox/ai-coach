@@ -45,11 +45,17 @@ SESSION = [(253, UINT32), (2, UINT32), (7, UINT32), (8, UINT32), (9, UINT32), (5
            (22, UINT16), (16, UINT8), (17, UINT8)]
 
 
+# lap message (global 19): timestamp, start_time, total_elapsed_time, total_timer_time, total_distance, avg_speed (scale 1000),
+# avg_heart_rate, max_heart_rate, avg_cadence, avg_power, total_ascent, total_descent, intensity, lap_trigger, message_index
+LAP = [(253, UINT32), (2, UINT32), (7, UINT32), (8, UINT32), (9, UINT32), (13, UINT16), (15, UINT8), (16, UINT8), (17, UINT8),
+       (19, UINT16), (21, UINT16), (22, UINT16), (23, ENUM), (24, ENUM), (254, UINT16)]
+
+
 def semicircles(deg: float) -> int:
     return int(deg * 2**31 / 180)
 
 
-def make_fit(start_unix: int = 1_760_000_000, n: int = 5, sport: int = 1) -> bytes:
+def make_fit(start_unix: int = 1_760_000_000, n: int = 5, sport: int = 1, laps: list[dict] | None = None) -> bytes:
     body = _definition(0, 20, RECORD)
     for i in range(n):
         body += _data(0, RECORD, [
@@ -60,6 +66,16 @@ def make_fit(start_unix: int = 1_760_000_000, n: int = 5, sport: int = 1) -> byt
             3000 + i * 10,                 # speed, scale 1000 -> m/s
             140 + i, 85,
         ])
+    if laps:
+        body += _definition(2, 19, LAP)
+        t = start_unix - FIT_EPOCH
+        for i, lap in enumerate(laps):
+            secs = lap["secs"]
+            body += _data(2, LAP, [t + secs, t, secs * 1000, secs * 1000, int(lap["dist"] * 100),
+                                   int(lap["dist"] / secs * 1000), lap.get("hr", 150), lap.get("hrmax", 160), lap.get("cad", 85),
+                                   lap.get("power", 0), lap.get("up", 5), lap.get("down", 3), lap.get("intensity", 0),
+                                   lap.get("trigger", 2), i])
+            t += secs
     body += _definition(1, 18, SESSION)
     body += _data(1, SESSION, [
         start_unix - FIT_EPOCH + n, start_unix - FIT_EPOCH, n * 1000, n * 1000,

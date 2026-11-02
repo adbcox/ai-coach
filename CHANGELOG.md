@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.1
+
+Added
+- **Laps (Garmin's splits)** on every activity page: each automatic 1 km lap (or manual lap, or workout step) with distance, time, pace
+  (or speed for rides), average and max heart rate, elevation gain and loss, cadence and power, plus a bar chart of lap pace with the
+  fastest full lap marked. Workout steps are labelled warm-up / interval / rest / cool-down. They come from the activity file Garmin
+  already sends, so they match Garmin Connect and need no extra Garmin requests.
+- Activities you already have are filled in automatically from the files stored on your server (in the background after the update,
+  and instantly when you open an activity).
+
+Notes
+- A short final lap shows its real distance (the remainder), and only full-length automatic splits are ranked fastest.
+- Cadence for running laps is shown as steps per minute (Garmin files store strides per minute for one foot).
+
 ## 0.6.0
 
 Added

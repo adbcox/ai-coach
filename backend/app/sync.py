@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
-from . import db, schedule
+from . import db, laps, schedule
 from .config import Settings
 from .crypto import SecretBox
 from .fit.parser import FitError, ParsedActivity, extract_fit, parse_fit
@@ -91,6 +91,7 @@ def _insert(conn, item: dict[str, Any], parsed: ParsedActivity, rel_path: str) -
         [(activity_id, s.t, s.lat, s.lon, s.alt, s.hr, s.cadence, s.power, s.speed, s.dist)
          for s in parsed.samples],
     )
+    laps.save_laps(conn, activity_id, parsed.laps)
     return True
 
 

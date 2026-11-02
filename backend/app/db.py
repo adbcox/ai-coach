@@ -122,6 +122,26 @@ CREATE TABLE IF NOT EXISTS best_efforts_gap (
     covered_m REAL NOT NULL,
     PRIMARY KEY (activity_id, distance_m)
 );
+-- Laps (what Garmin Connect calls splits): automatic 1 km laps, manual laps or workout steps, from the FIT file.
+CREATE TABLE IF NOT EXISTS laps (
+    activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    idx INTEGER NOT NULL,
+    start_t INTEGER,
+    elapsed_s REAL, timer_s REAL, distance_m REAL,
+    avg_speed REAL, max_speed REAL,
+    avg_hr REAL, max_hr REAL,
+    ascent_m REAL, descent_m REAL,
+    avg_cadence REAL, avg_power REAL,
+    trigger TEXT, intensity TEXT,
+    PRIMARY KEY (activity_id, idx)
+) WITHOUT ROWID;
+-- Which activities have had their laps read from the stored FIT file (so an activity with none is not rescanned forever).
+CREATE TABLE IF NOT EXISTS lap_scan (
+    activity_id INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,
+    scanned_at TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    laps INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS effort_scan (
     activity_id INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,
     scanned_at TEXT NOT NULL,

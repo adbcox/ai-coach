@@ -33,6 +33,7 @@ class FakeGarmin:
              "activityType": {"typeKey": "cycling"}, "startTimeGMT": "2026-10-31 15:00:00"},
         ]
         self.valid_key = valid_key
+        self.fit = make_fit  # tests swap this to serve FIT files with laps
         self.downloads = 0
         self.calls = collections.Counter()
         self.search_params = []
@@ -68,7 +69,7 @@ class FakeGarmin:
             return httpx.Response(200, json=self.activities[start:start + limit])
         if "/download-service/files/activity/" in path:
             self.downloads += 1
-            return httpx.Response(200, content=make_zip(make_fit()))
+            return httpx.Response(200, content=make_zip(self.fit()))
         return httpx.Response(404)
 
 
