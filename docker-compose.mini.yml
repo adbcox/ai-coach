@@ -6,8 +6,8 @@ services:
       context: .
       target: slim
       args:
-        GIT_SHA: "p4-mini"
-    image: ai-endurance-coach:p4-mini
+        GIT_SHA: "p5-mini"
+    image: ai-endurance-coach:p5-mini
     container_name: ai-endurance-coach
     restart: unless-stopped
     # Bind to loopback only; Caddy on the Mini reverse-proxies coach.internal -> 127.0.0.1:26219.

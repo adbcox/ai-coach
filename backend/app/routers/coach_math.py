@@ -284,4 +284,64 @@ def make_router(get_conn, current_user):
         suggest.record_feedback(conn, int(row["id"]), user_action)
         return {"ok": True, "suggestion_id": int(row["id"])}
 
+    @r.get("/api/ha/today")
+    def ha_today(conn=Depends(get_conn)) -> dict:
+        """P5: deterministic tile for Home Assistant. No LLM call."""
+        today = date.today().isoformat()
+        rd = conn.execute(
+            "SELECT score, band FROM readiness_day WHERE day = ?", (today,),
+        ).fetchone()
+        readiness = {"score": rd["score"] if rd else None,
+                     "band": rd["band"] if rd else None}
+        ld = conn.execute(
+            "SELECT tsb FROM training_load_day ORDER BY day DESC LIMIT 1",
+        ).fetchone()
+        tsb = ld["tsb"] if ld else None
+
+        from ..coach_maths import suggest as _sug
+        s = _sug.suggest_today(conn)
+        suggestion: dict | None = None
+        p = s.get("primary")
+        if p:
+            fam = str(p.get("family", "")).replace("_", " ") or "activity"
+            mins = int(round(p.get("duration_min") or 0))
+            cluster = str(p.get("cluster", "")).lower()
+            intensity = _ha_intensity(cluster)
+            notes = p.get("notes") or []
+            top_reason: str | None = None
+            comps = p.get("components") or {}
+            if (comps.get("w1_weekday") or 0) > 0.3:
+                top_reason = f"matches your usual {fam}"
+            elif (comps.get("w3_prelude") or 0) > 0.5:
+                top_reason = "fits what came before"
+            elif notes:
+                top_reason = str(notes[0])
+            else:
+                band = readiness.get("band")
+                top_reason = f"readiness {band}" if band else "within your routine"
+            one_line = f"{mins} min {cluster} {fam} — {top_reason}"
+            suggestion = {
+                "sport": p.get("family"),
+                "duration_min": mins,
+                "intensity": intensity,
+                "one_line": one_line,
+                "low_confidence": bool(s.get("low_confidence")),
+            }
+        return {
+            "readiness": readiness,
+            "suggestion": suggestion,
+            "tsb": tsb,
+            "generated_at": datetime.now(UTC).replace(microsecond=0).isoformat(),
+        }
+
     return r
+
+
+def _ha_intensity(cluster: str) -> str:
+    c = cluster.lower()
+    if "recovery" in c or "easy" in c: return "recovery"
+    if "endur" in c or "steady" in c or "long" in c: return "zone 2"
+    if "temp" in c: return "tempo"
+    if "thresh" in c or "sweet" in c: return "threshold"
+    if "vo2" in c or "interval" in c or "hard" in c: return "intervals"
+    return c or "general"
