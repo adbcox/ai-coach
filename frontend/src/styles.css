@@ -271,3 +271,23 @@ button.small { padding: 5px 10px; font-size: 13px; }
 .dash-building p { margin: 4px 0 0; font-size: 14px; }
 .spinner { width: 22px; height: 22px; border: 3px solid color-mix(in srgb, var(--muted) 30%, transparent); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin-top: 2px; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Training log */
+.log { max-width: 1100px; margin: 0 auto; }
+.log-weeks { display: grid; gap: 10px; margin-top: 8px; }
+.log-week { display: grid; grid-template-columns: 180px 1fr 240px; gap: 14px; padding: 12px 10px; border-top: 1px solid var(--line); align-items: center; }
+.log-week:first-child { border-top: 0; }
+@media (max-width: 900px) { .log-week { grid-template-columns: 1fr; } }
+.log-wlabel { display: grid; gap: 2px; }
+.log-wlabel strong { font-size: 15px; }
+.log-wlabel .muted { font-size: 12px; }
+.log-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; min-height: 56px; }
+.log-day { display: grid; gap: 4px; padding: 4px 2px; border-right: 1px solid var(--line); min-height: 56px; align-content: start; }
+.log-day:last-child { border-right: 0; }
+.log-ddate { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.log-bubbles { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; }
+.log-bubble { border: 0; padding: 0; border-radius: 50%; cursor: pointer; opacity: .88; transition: transform .1s, opacity .1s; }
+.log-bubble:hover { transform: scale(1.1); opacity: 1; }
+.log-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 12px; font-size: 13px; }
+.log-stat { display: flex; justify-content: space-between; gap: 6px; }
+.log-stat strong { font-variant-numeric: tabular-nums; }

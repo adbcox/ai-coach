@@ -12,10 +12,12 @@ import Predict from "./pages/Predict";
 import Recovery from "./pages/Recovery";
 import References from "./pages/References";
 import Settings from "./pages/Settings";
+import TrainingLog from "./pages/TrainingLog";
 
 const ICONS: Record<string, string> = {
   dashboard: "M3 13h8V3H3v10zm10 8h8V11h-8v10zM3 21h8v-6H3v6zM13 3v6h8V3h-8z",
   activities: "M4 6h16M4 12h16M4 18h10",
+  log: "M8 2v4M16 2v4M3 10h18M5 6h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2z",
   predict: "M12 8v5l3 2M9 2h6M12 4a9 9 0 100 18 9 9 0 000-18z",
   recovery: "M3 12h4l3-8 4 16 3-8h4",
   library: "M4 4h5a3 3 0 013 3v13a2 2 0 00-2-2H4V4zm16 0h-5a3 3 0 00-3 3v13a2 2 0 012-2h6V4z",
@@ -30,7 +32,7 @@ function Icon({ name }: { name: string }) {
   );
 }
 
-type Route = { name: "dashboard" | "activities" | "predict" | "recovery" | "library" | "settings" } | { name: "activity"; id: number } | { name: "references"; id?: string } | { name: "libraryItem"; id: string };
+type Route = { name: "dashboard" | "activities" | "log" | "predict" | "recovery" | "library" | "settings" } | { name: "activity"; id: number } | { name: "references"; id?: string } | { name: "libraryItem"; id: string };
 
 function parseHash(): Route {
   const h = window.location.hash.replace(/^#\/?/, "");
@@ -40,7 +42,7 @@ function parseHash(): Route {
   if (r) return { name: "references", id: r[1] };
   const li = h.match(/^library\/([a-z0-9][a-z0-9._-]*)$/);
   if (li) return { name: "libraryItem", id: li[1] };
-  if (h === "activities" || h === "predict" || h === "recovery" || h === "library" || h === "settings") return { name: h };
+  if (h === "activities" || h === "log" || h === "predict" || h === "recovery" || h === "library" || h === "settings") return { name: h };
   return { name: "dashboard" };
 }
 
@@ -76,7 +78,7 @@ export default function App() {
       <header>
         <a className="brand" href="#/"><img src="/logo.svg" alt="" width="26" height="26" /><strong>Endurance Coach</strong><VersionBadge /></a>
         <nav>
-          {(["dashboard", "activities", "predict", "recovery", "library", "settings"] as const).map((t) => (
+          {(["dashboard", "activities", "log", "predict", "recovery", "library", "settings"] as const).map((t) => (
             <button key={t} className={tab === t ? "active" : ""} onClick={() => go(t === "dashboard" ? "" : t)}>
               {t === "predict" ? "Predict" : t[0].toUpperCase() + t.slice(1)}
             </button>
@@ -89,6 +91,7 @@ export default function App() {
       <main>
         {route.name === "dashboard" && <Dashboard open={openActivity} goSettings={() => go("settings")} />}
         {route.name === "activities" && <Activities open={openActivity} goSettings={() => go("settings")} />}
+        {route.name === "log" && <TrainingLog open={openActivity} />}
         {route.name === "activity" && <ActivityDetail id={route.id} back={() => window.history.back()} />}
         {route.name === "predict" && <Predict goSettings={() => go("settings")} />}
         {route.name === "recovery" && <Recovery goSettings={() => go("settings")} />}
@@ -98,7 +101,7 @@ export default function App() {
         {route.name === "settings" && <Settings onRestored={refresh} />}
       </main>
       <nav className="tabbar" aria-label="Main">
-        {(["dashboard", "activities", "predict", "recovery", "library", "settings"] as const).map((t) => (
+        {(["dashboard", "activities", "log", "predict", "recovery", "library", "settings"] as const).map((t) => (
           <button key={t} className={tab === t ? "active" : ""} onClick={() => go(t === "dashboard" ? "" : t)}>
             <Icon name={t} />
             <span>{t === "predict" ? "Predict" : t[0].toUpperCase() + t.slice(1)}</span>
