@@ -6,8 +6,8 @@ services:
       context: .
       target: slim
       args:
-        GIT_SHA: "p2b-mini"
-    image: ai-endurance-coach:p2b-mini
+        GIT_SHA: "p3-mini"
+    image: ai-endurance-coach:p3-mini
     container_name: ai-endurance-coach
     restart: unless-stopped
     # Bind to loopback only; Caddy on the Mini reverse-proxies coach.internal -> 127.0.0.1:26219.
@@ -40,6 +40,12 @@ services:
       AEC_BACKFILL_WINDOW_TZ: "${AEC_BACKFILL_WINDOW_TZ:-America/New_York}"
       # Override from the host (e.g. 0 to keep backfill paused while recovering).
       AEC_SYNC_INTERVAL_HOURS: "${AEC_SYNC_INTERVAL_HOURS:-6}"
+      # P3 — LLM explain layer. Studio hosts the model; Mini calls LiteLLM.
+      AEC_LITELLM_BASE_URL: "${AEC_LITELLM_BASE_URL:-http://litellm.internal:4000}"
+      AEC_COACH_MODEL: "${AEC_COACH_MODEL:-qwen3-30b-a3b-instruct}"
+      AEC_COACH_CALL_TIMEOUT_S: "${AEC_COACH_CALL_TIMEOUT_S:-90}"
+      AEC_COACH_ENDPOINT_TIMEOUT_S: "${AEC_COACH_ENDPOINT_TIMEOUT_S:-180}"
+      AEC_COACH_MAX_TOOL_ROUNDS: "${AEC_COACH_MAX_TOOL_ROUNDS:-6}"
       # Default UID matches the Dockerfile; Mini is single-tenant.
       PUID: "1000"
       PGID: "1000"

@@ -53,6 +53,15 @@ class Settings:
     # to resolve "weather on this day" for daily rollups.
     home_latitude: float | None = None
     home_longitude: float | None = None
+    # P3 — LLM explain layer. Mini calls Mac Studio via LiteLLM on :4000.
+    # D4: default model is Qwen 3 30B A3B instruct. Override via env.
+    litellm_base_url: str = "http://litellm.internal:4000"
+    litellm_api_key_file: Path | None = None
+    coach_model: str = "qwen3-30b-a3b-instruct"
+    coach_call_timeout_s: float = 90.0        # per-model-call
+    coach_endpoint_timeout_s: float = 180.0   # whole tool-calling loop
+    coach_max_tool_rounds: int = 6
+    coach_system_prompt_file: Path | None = None
 
     @property
     def db_path(self) -> Path:
@@ -100,4 +109,14 @@ class Settings:
                 if os.environ.get("AEC_HOME_LATITUDE") else None,
             home_longitude=float(os.environ["AEC_HOME_LONGITUDE"])
                 if os.environ.get("AEC_HOME_LONGITUDE") else None,
+            litellm_base_url=os.environ.get("AEC_LITELLM_BASE_URL",
+                                            "http://litellm.internal:4000"),
+            litellm_api_key_file=Path(os.environ["AEC_LITELLM_API_KEY_FILE"])
+                if os.environ.get("AEC_LITELLM_API_KEY_FILE") else None,
+            coach_model=os.environ.get("AEC_COACH_MODEL", "qwen3-30b-a3b-instruct"),
+            coach_call_timeout_s=float(os.environ.get("AEC_COACH_CALL_TIMEOUT_S", 90)),
+            coach_endpoint_timeout_s=float(os.environ.get("AEC_COACH_ENDPOINT_TIMEOUT_S", 180)),
+            coach_max_tool_rounds=int(os.environ.get("AEC_COACH_MAX_TOOL_ROUNDS", 6)),
+            coach_system_prompt_file=Path(os.environ["AEC_COACH_SYSTEM_PROMPT_FILE"])
+                if os.environ.get("AEC_COACH_SYSTEM_PROMPT_FILE") else None,
         )

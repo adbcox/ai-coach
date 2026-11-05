@@ -485,6 +485,20 @@ CREATE TABLE IF NOT EXISTS suggestion_history (
     recorded_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_suggestion_history_day ON suggestion_history(day);
+
+-- P3: coach / LLM transcript. One row per message in a tool-calling turn.
+CREATE TABLE IF NOT EXISTS coach_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    created_at TEXT NOT NULL,
+    model TEXT NOT NULL,
+    role TEXT NOT NULL,              -- system | user | assistant | tool
+    text TEXT,
+    tool_calls_json TEXT,
+    numbers_json TEXT,
+    duration_ms INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_coach_messages_created ON coach_messages(created_at);
 """
 
 
@@ -500,7 +514,7 @@ def connect(path: Path) -> sqlite3.Connection:
     return conn
 
 
-SCHEMA_VERSION = 4  # bump when a migration is added; stored in PRAGMA user_version
+SCHEMA_VERSION = 5  # bump when a migration is added; stored in PRAGMA user_version
 
 
 def _add_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:

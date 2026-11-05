@@ -661,6 +661,20 @@ def create_app(
     app.include_router(make_router(lib, get_conn, current_user))
     from .routers.coach_math import make_router as _cm_make_router
     app.include_router(_cm_make_router(get_conn, current_user))
+    from .routers.coach import make_router as _coach_make_router
+    app.include_router(_coach_make_router(get_conn, current_user, settings))
+    # P3: non-fatal startup ping so missing models are visible in logs.
+    try:
+        from .coach import client as _coach_client
+        ok, note = _coach_client.check_model_available(
+            settings.litellm_base_url, settings.coach_model,
+            api_key=_coach_client.load_api_key(settings),
+        )
+        app.state.coach_model_ok = ok
+        app.state.coach_model_note = note
+    except Exception as e:  # pragma: no cover
+        app.state.coach_model_ok = False
+        app.state.coach_model_note = f"startup check failed: {e!r}"
 
     @app.get("/api/references")
     def references_list(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
