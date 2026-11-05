@@ -1,129 +1,153 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, ActivityList, api } from "../api";
-import MileageChart from "../components/MileageChart";
-import RollingCharts from "../components/RollingCharts";
-import { duration, km, lastDays, localDay, sportGroup, SportGroup, unitDist } from "../lib/format";
-import { distFactor } from "../lib/units";
+import {
+  Activity, ActivityList, CoachReply, LoadDay, LoadHistory,
+  Readiness, SuggestedWorkout, api,
+} from "../api";
+import LoadBars, { FamDay } from "../components/LoadBars";
+import PmcChart from "../components/PmcChart";
+import PmcTiles from "../components/PmcTiles";
+import ReadinessChip from "../components/ReadinessChip";
+import SuggestedWorkoutCard from "../components/SuggestedWorkoutCard";
+import { duration, km, unitDist } from "../lib/format";
 import { ago, useSync } from "../lib/useSync";
 
-const FILTERS: ("All" | SportGroup)[] = ["All", "Running", "Cycling", "Hiking", "Other"];
+const FAMILY_FILTERS: { key: string; label: string }[] = [
+  { key: "all", label: "All" },
+  { key: "run_road", label: "Run" },
+  { key: "bike_road", label: "Ride" },
+  { key: "hike", label: "Hike" },
+  { key: "other", label: "Other" },
+];
+const RANGE_OPTS: { key: "90d" | "180d" | "1y" | "2y" | "5y"; label: string; days: number }[] = [
+  { key: "90d", label: "90d", days: 90 },
+  { key: "180d", label: "180d", days: 180 },
+  { key: "1y", label: "1y", days: 365 },
+  { key: "2y", label: "2y", days: 730 },
+  { key: "5y", label: "5y", days: 1825 },
+];
 
-export default function Dashboard({ open, goSettings }: { open: (id: number) => void; goSettings: () => void }) {
-  const [items, setItems] = useState<Activity[] | null>(null);
-  const [filter, setFilter] = useState<(typeof FILTERS)[number]>("Running");
+export default function Dashboard({ open, goSettings }: {
+  open: (id: number) => void; goSettings: () => void;
+}) {
+  const [range, setRange] = useState<(typeof RANGE_OPTS)[number]["key"]>("180d");
+  const rangeDays = RANGE_OPTS.find((r) => r.key === range)!.days;
+  const [load, setLoad] = useState<LoadHistory | null>(null);
+  const [famDays, setFamDays] = useState<FamDay[]>([]);
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [suggest, setSuggest] = useState<SuggestedWorkout | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [recent, setRecent] = useState<Activity[]>([]);
+  const [filter, setFilter] = useState<string>("all");
   const [error, setError] = useState("");
 
-  const loadActivities = useCallback(() => {
-    const since = new Date(Date.now() - 36 * 86400000).toISOString();
-    api<ActivityList>(`/activities?since=${encodeURIComponent(since)}&limit=500`)
-      .then((d) => setItems(d.items))
-      .catch((e) => setError(e.message));
+  const loadAll = useCallback(async () => {
+    try {
+      const L = await api<LoadHistory>(`/load/history?days=${rangeDays}`);
+      setLoad(L);
+      // Family bars: pull once per known family in parallel; stack on the date axis.
+      const families = ["run_road", "bike_road", "hike", "other"];
+      const famRows: FamDay[] = [];
+      await Promise.all(families.map(async (fam) => {
+        try {
+          const famHist = await api<LoadHistory>(`/load/history?days=30&family=${fam}`);
+          for (const d of famHist.days) {
+            if ((d.tss ?? 0) > 0) famRows.push({ day: d.day, family: fam, tss: d.tss as number });
+          }
+        } catch { /* missing family is fine */ }
+      }));
+      setFamDays(famRows);
+
+      api<Readiness>("/readiness/today").then(setReadiness).catch(() => undefined);
+      api<SuggestedWorkout>("/suggest/today").then(setSuggest).catch(() => undefined);
+      api<ActivityList>("/activities?limit=6").then((d) => setRecent(d.items)).catch(() => undefined);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }, [rangeDays]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+  const sync = useSync(loadAll);
+
+  const askCoach = useCallback(async () => {
+    try {
+      const r = await api<CoachReply>("/coach/daily", "POST");
+      setNote(r.reply);
+    } catch (e) {
+      setNote(null);  // non-fatal; dashboard still works
+    }
   }, []);
-  useEffect(loadActivities, [loadActivities]);
-  // start on the sport chosen in Settings (clicking a chip only changes the view for now)
+
+  // Fire once after load lands so the first-paint has real tiles before the LLM note comes in.
   useEffect(() => {
-    api<{ default_sport: string }>("/preferences")
-      .then((p) => (FILTERS as string[]).includes(p.default_sport) && setFilter(p.default_sport as (typeof FILTERS)[number]))
-      .catch(() => undefined);
-  }, []);
-  const sync = useSync(loadActivities);
+    if (load?.days.length && !note) askCoach();
+  }, [load]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const view = useMemo(
-    () => (items ?? []).filter((a) => filter === "All" || sportGroup(a.sport) === filter),
-    [items, filter],
-  );
+  const daysFiltered = useMemo(() => {
+    if (!load) return [] as LoadDay[];
+    if (filter === "all") return load.days;
+    const famRows = famDays.filter((f) => f.family === filter);
+    const famByDay: Record<string, number> = {};
+    for (const r of famRows) famByDay[r.day] = (famByDay[r.day] ?? 0) + (r.tss || 0);
+    return load.days.map((d) => ({ ...d, tss: famByDay[d.day] ?? 0 }));
+  }, [load, famDays, filter]);
 
-  const stats = useMemo(() => {
-    const days = lastDays(14);
-    const recent = new Set(days.slice(7));
-    const prior = new Set(days.slice(0, 7));
-    const sum = (set: Set<string>) => {
-      const rows = view.filter((a) => set.has(localDay(a.start_time)));
-      return {
-        dist: rows.reduce((n, a) => n + (a.distance_m ?? 0), 0),
-        time: rows.reduce((n, a) => n + (a.duration_s ?? 0), 0),
-        count: rows.length,
-      };
-    };
-    return { recent: sum(recent), prior: sum(prior) };
-  }, [view]);
+  const famDaysFiltered = useMemo(() => {
+    if (filter === "all") return famDays;
+    return famDays.filter((f) => f.family === filter);
+  }, [famDays, filter]);
 
-  if (error) return <p className="error">{error}</p>;
-  if (!items) return <p className="muted">Loading…</p>;
-
-  const delta = stats.recent.dist - stats.prior.dist;
-  const latest = view.slice(0, 5);
+  const firstBuild = !load || load.days.length === 0;
 
   return (
-    <div className="stack">
-      <div className="row between syncbar">
-        <div>
-          {sync.status?.configured ? (
-            <>
-              <button className="primary" onClick={() => sync.start("quick")} disabled={sync.running}>
-                {sync.running ? "Syncing…" : "Sync"}
-              </button>{" "}
-              <span className="muted">
-                {sync.running
-                  ? sync.status.last_sync?.message ?? ""
-                  : `Last synced ${ago(sync.status.last_sync?.finished_at)}${
-                      sync.status.last_sync?.status === "error" ? " (failed: " + sync.status.last_sync.message + ")" : ""
-                    }`}
-              </span>
-              {sync.error && <span className="error"> {sync.error}</span>}
-            </>
-          ) : (
-            sync.status && (
-              <span className="muted">
-                No data source connected. <button className="link" onClick={goSettings}>Add your Garmin key</button>
-              </span>
-            )
-          )}
+    <div className="dash">
+      <SyncBar sync={sync} goSettings={goSettings} />
+
+      <div className="dash-top">
+        <SuggestedWorkoutCard suggest={suggest} note={note} onFeedback={loadAll} />
+        <ReadinessChip readiness={readiness} />
+      </div>
+
+      <section className="card dash-pmc">
+        <div className="row between dash-pmc-head">
+          <div>
+            <h2 className="dash-h">Fitness &amp; Freshness</h2>
+            <span className="muted">CTL · ATL · TSB · ACWR 0.8–1.3 band greyed</span>
+          </div>
+          <div className="chips">
+            {RANGE_OPTS.map((o) => (
+              <button key={o.key} className={range === o.key ? "active" : ""}
+                onClick={() => setRange(o.key)}>{o.label}</button>
+            ))}
+          </div>
         </div>
-      </div>
-
-      <div className="row between">
-        <h2 style={{ margin: 0 }}>Last 14 days</h2>
-        <div className="chips">
-          {FILTERS.map((f) => (
-            <button key={f} className={f === filter ? "active" : ""} onClick={() => setFilter(f)}>
-              {f}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="tiles">
-        <Tile label="Last 7 days" value={`${km(stats.recent.dist, 1)} ${unitDist()}`} sub={`${stats.recent.count} activities · ${duration(stats.recent.time)}`} />
-        <Tile label="Previous 7 days" value={`${km(stats.prior.dist, 1)} ${unitDist()}`} sub={`${stats.prior.count} activities · ${duration(stats.prior.time)}`} />
-        <Tile
-          label="Change"
-          value={`${delta >= 0 ? "+" : ""}${((delta / 1000) * distFactor()).toFixed(1)} ${unitDist()}`}
-          sub={stats.prior.dist > 0 ? `${Math.round((delta / stats.prior.dist) * 100)}% vs previous week` : "no previous week"}
-        />
-      </div>
-
-      <section className="card wide">
-        <h3 style={{ margin: 0 }}>Daily distance</h3>
-        <MileageChart activities={view} />
+        <PmcTiles days={load?.days ?? []} />
+        {firstBuild ? (
+          <HistoryBuilding sync={sync} />
+        ) : (
+          <>
+            <PmcChart days={daysFiltered} height={320} />
+            <LoadBars days={daysFiltered.slice(-30)} familyDays={famDaysFiltered} />
+            <FamilyLegend />
+          </>
+        )}
       </section>
 
-      <div className="row between">
-        <h2 style={{ margin: 0 }}>Last 4 weeks</h2>
-      </div>
-      <RollingCharts activities={view} noun={filter === "Running" ? "run" : filter === "Cycling" ? "ride" : "activity"} />
-
-      <section className="card wide">
-        <h3 style={{ margin: 0 }}>Latest activities</h3>
-        {latest.length === 0 ? (
-          <p className="muted">
-            Nothing in the last 5 weeks{filter !== "All" ? ` for ${filter}` : ""}. Older activities are in the Activities tab; check{" "}
-            <button className="link" onClick={goSettings}>Settings</button> if a sync is still running.
-          </p>
+      <section className="card dash-recent">
+        <div className="row between">
+          <h2 className="dash-h">Recent activities</h2>
+          <div className="chips">
+            {FAMILY_FILTERS.map((f) => (
+              <button key={f.key} className={f.key === filter ? "active" : ""}
+                onClick={() => setFilter(f.key)}>{f.label}</button>
+            ))}
+          </div>
+        </div>
+        {recent.length === 0 ? (
+          <p className="muted">No activities in view yet.</p>
         ) : (
           <table className="tbl-latest">
             <tbody>
-              {latest.map((a) => (
+              {recent.map((a) => (
                 <tr key={a.id} className="click" onClick={() => open(a.id)}>
                   <td className="nowrap">{new Date(a.start_time).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</td>
                   <td className="ellip">{a.name ?? a.sport ?? "Activity"}</td>
@@ -135,16 +159,75 @@ export default function Dashboard({ open, goSettings }: { open: (id: number) => 
           </table>
         )}
       </section>
+
+      {error && <p className="error">{error}</p>}
     </div>
   );
 }
 
-function Tile({ label, value, sub }: { label: string; value: string; sub: string }) {
+function SyncBar({ sync, goSettings }: { sync: ReturnType<typeof useSync>; goSettings: () => void }) {
+  if (!sync.status) return <div className="syncbar" />;
+  const s = sync.status;
+  if (!s.configured) {
+    return (
+      <div className="syncbar">
+        <span className="muted">
+          No data source connected.{" "}
+          <button className="link" onClick={goSettings}>Add your Garmin key</button>
+        </span>
+      </div>
+    );
+  }
   return (
-    <div className="card tile">
-      <span className="muted">{label}</span>
-      <strong>{value}</strong>
-      <span className="muted">{sub}</span>
+    <div className="syncbar">
+      <button className="primary small" onClick={() => sync.start("quick")} disabled={sync.running}>
+        {sync.running ? "Syncing…" : "Sync now"}
+      </button>
+      <span className="muted">
+        {sync.running
+          ? (s.last_sync?.message ?? "Working on it…")
+          : `Last synced ${ago(s.last_sync?.finished_at)}${s.last_sync?.status === "error" ? ` (${s.last_sync.message})` : ""}`}
+      </span>
+      {sync.error && <span className="error">{sync.error}</span>}
+    </div>
+  );
+}
+
+function HistoryBuilding({ sync }: { sync: ReturnType<typeof useSync> }) {
+  return (
+    <div className="dash-building">
+      <div className="spinner" />
+      <div>
+        <strong>Building your history</strong>
+        <p className="muted">
+          The nightly import is still bringing older rides in. Numbers here fill out as the first
+          long sync finishes; refresh when a sync lands.
+        </p>
+        {sync.status?.last_sync && (
+          <p className="muted">
+            Last sync: {sync.status.last_sync.status}
+            {sync.status.last_sync.new_activities != null && ` · ${sync.status.last_sync.new_activities} new`}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FamilyLegend() {
+  const items = [
+    { k: "run_road", l: "Run", c: "#1f6feb" },
+    { k: "bike_road", l: "Ride", c: "#e8590c" },
+    { k: "hike", l: "Hike", c: "#2da44e" },
+    { k: "other", l: "Other", c: "#98a2b3" },
+  ];
+  return (
+    <div className="family-legend">
+      {items.map((x) => (
+        <span key={x.k} className="fl-item">
+          <i style={{ background: x.c }} />{x.l}
+        </span>
+      ))}
     </div>
   );
 }

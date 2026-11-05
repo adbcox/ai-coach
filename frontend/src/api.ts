@@ -119,6 +119,77 @@ export interface RestoreSummary {
   secrets_restored: boolean; secrets_in_backup: boolean; previous_database_kept_as: string | null;
 }
 
+// ---- P2/P2b/P3 coach-maths + explain-layer types -------------------------
+
+export interface LoadDay {
+  day: string;
+  trimp: number | null;
+  tss: number | null;
+  ctl: number | null;
+  atl: number | null;
+  tsb: number | null;
+  acwr?: number | null;
+}
+export interface LoadHistory { days: LoadDay[]; family: string | null }
+export interface LoadDayFamily {
+  family: string; trimp: number; tss: number;
+  ctl: number | null; atl: number | null; tsb: number | null;
+}
+export interface LoadDayDetail extends LoadDay {
+  families: LoadDayFamily[];
+}
+export interface Readiness {
+  day: string;
+  score: number | null;
+  band: "green" | "yellow" | "red" | null;
+  hrv_part?: number | null;
+  sleep_part?: number | null;
+  rhr_part?: number | null;
+  load_part?: number | null;
+  checkin_part?: number | null;
+  inputs?: Record<string, unknown>;
+}
+export interface SuggestedCandidate {
+  family: string;
+  cluster: string;
+  duration_min: number;
+  tss: number;
+  decoupling_pct: number;
+  has_intervals: boolean;
+  score: number;
+  components: {
+    w1_weekday: number; w2_season: number; w3_prelude: number; w4_rhythm: number;
+  };
+  n_history: number;
+  notes: string[];
+}
+export interface SuggestedWorkout {
+  day: string;
+  generated_at: string;
+  primary: SuggestedCandidate | null;
+  alternative: SuggestedCandidate | null;
+  candidates?: SuggestedCandidate[];
+  low_confidence: boolean;
+  reason?: string;
+  context?: {
+    readiness: number | null;
+    band: string | null;
+    ill: boolean;
+    tsb_prev: number | null;
+    last_day_tss: number | null;
+    p95_tss_30d: number | null;
+    readiness_delta: number | null;
+  };
+}
+export interface CoachReply {
+  reply: string;
+  tools_used: { tool: string; arguments: Record<string, unknown> }[];
+  model: string;
+  duration_ms: number;
+  rounds: number;
+  finish_reason: string | null;
+}
+
 export async function restoreBackup(file: File, passphrase: string): Promise<RestoreSummary> {
   const res = await fetch("/api/restore", {
     method: "PUT",
