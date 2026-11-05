@@ -192,16 +192,24 @@ def _day_request(kind: DayKind, day: date) -> tuple[str, dict[str, Any] | None]:
 
 class Walker:
     def __init__(self, conn, client: GarminClient, settings: Settings, progress: Progress,
-                 sleep: Callable[[float], None] = time.sleep) -> None:
+                 sleep: Callable[[float], None] = time.sleep,
+                 throttle: Any | None = None) -> None:
         self.conn, self.client, self.settings = conn, client, settings
         self.progress, self.sleep = progress, sleep
+        self.throttle = throttle  # GarminThrottle or None (non-backfill path)
         self.fetched = 0
         self.notes: list[str] = []
 
     def _fetch(self, path: str, params):
+        # P1 (2026-11-05): every backfill Garmin request — including wellness —
+        # goes through the throttle so the nightly window, daily cap, and
+        # 24h-on-burst rules apply uniformly. Non-backfill (90-day quick/
+        # background) keeps the base's politeness delay only.
+        if self.throttle is not None:
+            self.throttle.before_request(self.conn, kind="wellness")
         payload = self.client.get_json(path, params)
         self.fetched += 1
-        if self.settings.request_delay_s:
+        if self.throttle is None and self.settings.request_delay_s:
             self.sleep(self.settings.request_delay_s)
         return payload
 
@@ -292,11 +300,12 @@ def sync_snapshots(conn, client: GarminClient, settings: Settings, notes: list[s
 
 
 def sync_wellness(conn, client: GarminClient, settings: Settings, *, full: bool,
-                  progress: Progress, floor: date, lookback: int) -> list[str]:
+                  progress: Progress, floor: date, lookback: int,
+                  throttle: Any | None = None) -> list[str]:
     """Returns human-readable notes (kinds that were unavailable, etc.)."""
     reclassify(conn)
     floor = max(floor, HISTORY_FLOOR)
-    walker = Walker(conn, client, settings, progress)
+    walker = Walker(conn, client, settings, progress, throttle=throttle)
     for rk in RANGE_KINDS:
         walker.range_kind(rk, floor, full, lookback)
     for dk in DAY_KINDS:

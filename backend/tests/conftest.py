@@ -85,7 +85,13 @@ def settings(tmp_path):
     # specifically need an *unconfigured* app override this fixture.
     key_file = tmp_path / "garmin_api_key"
     key_file.write_text(API_KEY + "\n", encoding="utf-8")
-    return Settings(data_dir=tmp_path, request_delay_s=0, garmin_api_key_file=key_file)
+    # start == end disables the nightly backfill-window gate for tests so
+    # they don't depend on wall-clock time. Window tests set this explicitly.
+    # backfill_delay_s=0 so wellness (which now goes through the throttle on
+    # full syncs) doesn't sleep between requests in tests.
+    return Settings(data_dir=tmp_path, request_delay_s=0, garmin_api_key_file=key_file,
+                    backfill_window_start="00:00", backfill_window_end="00:00",
+                    backfill_delay_s=0.0)
 
 
 @pytest.fixture

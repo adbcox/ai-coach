@@ -41,7 +41,9 @@ def test_stale_running_syncs_are_closed_on_startup(tmp_path):
     conn = db.connect(settings.db_path)
     row = conn.execute("SELECT status, finished_at, message FROM sync_runs").fetchone()
     conn.close()
-    assert row["status"] == "error" and row["finished_at"] and "interrupted" in row["message"]
+    # P1 (2026-11-05): an orphaned 'running' row becomes 'paused' with a
+    # resumable message — throttle state and downloaded activities are intact.
+    assert row["status"] == "paused" and row["finished_at"] and "paused" in row["message"].lower()
 
 
 def test_diagnostics_hides_ids_timestamps_and_body_measurements():

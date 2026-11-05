@@ -17,7 +17,7 @@ from .config import Settings
 from .crypto import SecretBox
 from .fit.parser import FitError, ParsedActivity, extract_fit, parse_fit
 from .garmin.client import GarminClient, GarminError
-from .garmin_throttle import GarminThrottle, ThrottlePaused
+from .garmin_throttle import GarminThrottle, ThrottlePaused, next_window_open, window_is_open
 from .wellness import HISTORY_FLOOR, set_state, sync_wellness
 
 PROVIDER = "garmin"
@@ -132,6 +132,28 @@ class SyncManager:
     def release_exclusive(self) -> None:
         self._lock.release()
 
+    def recover_wedged_runs(self) -> int:
+        """Any sync_runs row left status='running' after a process exit is
+        orphaned (no thread is driving it). Mark those rows 'paused' with a
+        clear message so the UI is honest and the next run isn't blocked by
+        the stale 'already running' check. The downloaded activities and
+        throttle state are untouched, so the backfill truly resumes."""
+        conn = db.connect(self.settings.db_path)
+        try:
+            rows = conn.execute(
+                "SELECT id FROM sync_runs WHERE status='running'",
+            ).fetchall()
+            for row in rows:
+                conn.execute(
+                    "UPDATE sync_runs SET status='paused', finished_at=?, "
+                    "message=? WHERE id=?",
+                    (_now(), "Paused: process restarted; resumes on next window/tick.", row["id"]),
+                )
+            conn.commit()
+            return len(rows)
+        finally:
+            conn.close()
+
     def start_background(self, mode: str = "quick") -> bool:
         if self._lock.locked():
             return False
@@ -141,6 +163,10 @@ class SyncManager:
 
     def maybe_run_scheduled(self) -> SyncResult | None:
         """Called every minute by the scheduler; runs a background sync when due."""
+        # P1 (2026-11-05): nightly window gate. All Garmin traffic is forbidden
+        # outside the window, so the scheduler must not even start a run.
+        if not window_is_open(self.settings):
+            return None
         conn = db.connect(self.settings.db_path)
         try:
             has_key = conn.execute("SELECT 1 FROM provider_credentials WHERE provider=?",
@@ -221,9 +247,26 @@ class SyncManager:
                 # earliest available data (10-year history backfill).
                 floor = HISTORY_FLOOR if full else (
                     date.today() - timedelta(days=self.settings.backfill_days))
+                # During backfill, wellness also goes through the throttle so
+                # the window, cap, and burst-pause apply uniformly. Non-backfill
+                # syncs stay on the base client's politeness delay.
+                wt = self._throttle if full else None
                 notes = sync_wellness(conn, client, self.settings, full=full,
-                                      progress=progress, floor=floor, lookback=lookback)
+                                      progress=progress, floor=floor, lookback=lookback,
+                                      throttle=wt)
+        except ThrottlePaused as paused:
+            # Window-close or 24h-burst-pause mid-run: not an error, the sync
+            # is resumable and will continue on the next tick / next night.
+            conn.commit()
+            return SyncResult("ok", new, f"Paused: {paused} ({new} new activities saved; "
+                              "resumes automatically.)")
         except GarminError as exc:
+            if full and exc.status and (exc.status == 429 or exc.status >= 500):
+                self._throttle.hit_burst(conn, exc.status)
+                conn.commit()
+                return SyncResult("ok", new,
+                                  f"Throttle paused after HTTP {exc.status} during wellness; "
+                                  f"{new} new activities saved; backfill resumes later.")
             conn.commit()
             return SyncResult("error", new, f"{exc} ({new} new activities saved before the error; "
                               "run Sync again to continue)")

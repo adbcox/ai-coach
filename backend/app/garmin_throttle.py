@@ -32,7 +32,8 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time as dtime, timedelta
+from zoneinfo import ZoneInfo
 
 from .config import Settings
 from .wellness import get_state, set_state
@@ -40,6 +41,44 @@ from .wellness import get_state, set_state
 
 class ThrottlePaused(Exception):
     """Raised when a backfill call is attempted while the throttle is paused."""
+
+
+class OutsideWindow(ThrottlePaused):
+    """Raised when a backfill call is attempted outside the nightly window."""
+
+
+def _parse_hhmm(value: str) -> dtime:
+    hh, mm = value.split(":", 1)
+    return dtime(int(hh), int(mm))
+
+
+def window_is_open(settings: Settings, now: datetime | None = None) -> bool:
+    tz = ZoneInfo(settings.backfill_window_tz)
+    local = (now or datetime.now(UTC)).astimezone(tz)
+    start = _parse_hhmm(settings.backfill_window_start)
+    end = _parse_hhmm(settings.backfill_window_end)
+    if start == end:
+        # Sentinel for "no window" (always open) — used in tests and for
+        # operators who want 24/7 backfill.
+        return True
+    t = local.time()
+    # Window wraps midnight if end < start (e.g. 23:00 -> 06:00).
+    if end < start:
+        return t >= start or t < end
+    return start <= t < end
+
+
+def next_window_open(settings: Settings, now: datetime | None = None) -> datetime:
+    """UTC datetime of the next moment the window opens (or "now" if already open)."""
+    tz = ZoneInfo(settings.backfill_window_tz)
+    local = (now or datetime.now(UTC)).astimezone(tz)
+    start = _parse_hhmm(settings.backfill_window_start)
+    if window_is_open(settings, now):
+        return (now or datetime.now(UTC)).astimezone(UTC)
+    candidate = local.replace(hour=start.hour, minute=start.minute, second=0, microsecond=0)
+    if candidate <= local:
+        candidate = candidate + timedelta(days=1)
+    return candidate.astimezone(UTC)
 
 
 @dataclass
@@ -89,11 +128,15 @@ class GarminThrottle:
         except ValueError:
             self._pause_until_ts = 0.0
         try:
-            self._current_delay_s = float(
+            stored = float(
                 get_state(conn, "throttle.current_delay_s") or self.settings.backfill_delay_s,
             )
         except ValueError:
-            self._current_delay_s = float(self.settings.backfill_delay_s)
+            stored = float(self.settings.backfill_delay_s)
+        # Effective delay is always at least the env floor. A burst-halved value
+        # (bigger than env) stays; a stale carry-over below env is lifted so
+        # an operator bumping AEC_BACKFILL_DELAY_S takes effect at restart.
+        self._current_delay_s = max(float(self.settings.backfill_delay_s), stored)
 
     def _persist(self, conn) -> None:
         set_state(conn, "throttle.day", self._day)
@@ -108,10 +151,18 @@ class GarminThrottle:
 
     def before_request(self, conn, *, kind: str = "search") -> None:
         """Called before each backfill request. Blocks (sleeps) for the spacing
-        delay, enforces the daily cap, and raises ``ThrottlePaused`` if a
-        pause window is active. ``kind`` is for logging only.
+        delay, enforces the daily cap, enforces the nightly window, and raises
+        ``ThrottlePaused`` (or its ``OutsideWindow`` subclass) if traffic is
+        currently forbidden. ``kind`` is for logging only.
         """
         now = time.time()
+        if not window_is_open(self.settings):
+            nxt = next_window_open(self.settings).strftime("%Y-%m-%dT%H:%MZ")
+            raise OutsideWindow(
+                f"Garmin backfill window closed; resumes at {nxt} "
+                f"({self.settings.backfill_window_start}-{self.settings.backfill_window_end} "
+                f"{self.settings.backfill_window_tz}).",
+            )
         if self._pause_until_ts > now:
             wait = self._pause_until_ts - now
             reason = get_state(conn, "throttle.last_pause_reason") or "unknown"

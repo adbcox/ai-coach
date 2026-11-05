@@ -37,6 +37,11 @@ class Settings:
     backfill_daily_cap: int = 2000           # max Garmin requests per UTC day
     backfill_pause_hours: float = 24.0       # hours to pause after a 429/5xx burst
     backfill_rate_halving: bool = True       # halve rate on resume after pause
+    # Nightly backfill window (local time, IANA zone). All Garmin traffic
+    # (search + download + wellness) is gated to this window.
+    backfill_window_start: str = "23:00"     # HH:MM, inclusive
+    backfill_window_end: str = "06:00"       # HH:MM, exclusive (next day if < start)
+    backfill_window_tz: str = "America/New_York"
 
     @property
     def db_path(self) -> Path:
@@ -72,4 +77,7 @@ class Settings:
             backfill_daily_cap=int(os.environ.get("AEC_BACKFILL_DAILY_CAP", 2000)),
             backfill_pause_hours=float(os.environ.get("AEC_BACKFILL_PAUSE_HOURS", 24.0)),
             backfill_rate_halving=_flag("AEC_BACKFILL_RATE_HALVING", True),
+            backfill_window_start=os.environ.get("AEC_BACKFILL_WINDOW_START", "23:00"),
+            backfill_window_end=os.environ.get("AEC_BACKFILL_WINDOW_END", "06:00"),
+            backfill_window_tz=os.environ.get("AEC_BACKFILL_WINDOW_TZ", "America/New_York"),
         )

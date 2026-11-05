@@ -29,10 +29,15 @@ services:
       # Caddy terminates TLS; the app stays HTTP-only on loopback.
       AEC_SECURE_COOKIES: "false"
       # Conservative backfill defaults (dispatch-05 P1). Override per host.
-      AEC_BACKFILL_DELAY_S: "3"
+      AEC_BACKFILL_DELAY_S: "${AEC_BACKFILL_DELAY_S:-3}"
       AEC_BACKFILL_DAILY_CAP: "2000"
       AEC_BACKFILL_PAUSE_HOURS: "24"
       AEC_BACKFILL_RATE_HALVING: "true"
+      # Nightly backfill window: all Garmin traffic is gated to this window.
+      # Zone name is used so DST is handled correctly.
+      AEC_BACKFILL_WINDOW_START: "${AEC_BACKFILL_WINDOW_START:-23:00}"
+      AEC_BACKFILL_WINDOW_END: "${AEC_BACKFILL_WINDOW_END:-06:00}"
+      AEC_BACKFILL_WINDOW_TZ: "${AEC_BACKFILL_WINDOW_TZ:-America/New_York}"
       # Override from the host (e.g. 0 to keep backfill paused while recovering).
       AEC_SYNC_INTERVAL_HOURS: "${AEC_SYNC_INTERVAL_HOURS:-6}"
       # Default UID matches the Dockerfile; Mini is single-tenant.

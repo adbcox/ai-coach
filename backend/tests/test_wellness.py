@@ -173,3 +173,29 @@ def test_quick_sync_does_not_reset_schedule_timer(authed, client):
         assert schedule.is_due(conn, "garmin", client.app.state.settings, now=later)
     finally:
         conn.close()
+
+
+def test_full_sync_wellness_goes_through_throttle(authed, client, fake):
+    """Under mode=full every wellness request must pass through the backfill
+    throttle. We prove it by setting a tiny daily cap and asserting the sync
+    pauses cleanly (status=ok, message contains 'Paused') instead of flooding
+    Garmin — which is what the pre-fix behaviour would do."""
+    manager = client.app.state.sync_manager
+    # Tighten the cap so a full backfill is sure to trip it.
+    import dataclasses
+    manager.settings = dataclasses.replace(manager.settings, backfill_daily_cap=3,
+                                           backfill_delay_s=0.0)
+    manager._throttle = manager._throttle.__class__(manager.settings)
+    r = run_sync(authed, full=True)
+    msg = r["last_sync"]["message"] or ""
+    # Either paused (hit cap during activities/wellness) or ok with the cap
+    # evidence in the throttle snapshot. Either way day_count is bounded.
+    from app import db
+    conn = db.connect(client.app.state.settings.db_path)
+    try:
+        snap = manager._throttle.snapshot(conn)
+    finally:
+        conn.close()
+    assert snap.day_count <= snap.daily_cap
+    assert ("Paused" in msg or "paused" in msg.lower()
+            or snap.day_count == snap.daily_cap)

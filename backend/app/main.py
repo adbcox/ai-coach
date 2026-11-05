@@ -122,10 +122,11 @@ def create_app(
     # key string lives in process memory for the lifetime of the app.
     runtime_secrets: dict[str, str] = {}
     _conn = db.connect(settings.db_path)
-    try:  # a restart kills any running sync; do not leave its row "running" forever
+    try:  # a restart kills any running sync; mark it paused so the backfill
+          # resumes cleanly (throttle state + downloaded activities are intact).
         _conn.execute(
-            "UPDATE sync_runs SET status='error', finished_at=?, message=COALESCE(message, '') || "
-            "' (interrupted: the server restarted; run Sync again to continue)' WHERE status='running'",
+            "UPDATE sync_runs SET status='paused', finished_at=?, message=COALESCE(message, '') || "
+            "' (paused: the server restarted; resumes on next window/tick.)' WHERE status='running'",
             (_now(),))
         _conn.commit()
         if settings.garmin_api_key_file is not None:
