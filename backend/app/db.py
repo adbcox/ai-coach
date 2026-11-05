@@ -181,6 +181,193 @@ CREATE TABLE IF NOT EXISTS sync_runs (
     new_activities INTEGER NOT NULL DEFAULT 0,
     message TEXT
 );
+
+-- P2 (schema v3): coach-maths layer.
+--
+-- Sport keys (Garmin's typeKey strings) mapped to a small set of families the
+-- maths dispatches on. One row per sport key; populated lazily from activities.
+CREATE TABLE IF NOT EXISTS sports (
+    key TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    family TEXT NOT NULL,
+    load_method_primary TEXT NOT NULL,
+    load_method_fallback TEXT,
+    zones_axes_json TEXT,
+    created_at TEXT NOT NULL
+);
+
+-- Per-activity load; recomputed from the activity + current thresholds.
+CREATE TABLE IF NOT EXISTS activity_load (
+    activity_id INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,
+    family TEXT NOT NULL,
+    trimp REAL,
+    tss REAL,
+    method TEXT NOT NULL,
+    inputs_json TEXT,
+    computed_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_activity_load_family ON activity_load(family);
+
+-- Daily aggregated load + PMC (CTL/ATL/TSB) and ACWR.
+CREATE TABLE IF NOT EXISTS training_load_day (
+    day TEXT PRIMARY KEY,
+    trimp REAL NOT NULL DEFAULT 0,
+    tss REAL NOT NULL DEFAULT 0,
+    ctl REAL,
+    atl REAL,
+    tsb REAL,
+    acwr REAL,
+    computed_at TEXT NOT NULL
+);
+
+-- Per-family daily load + per-family PMC (the UI shows the sport split).
+CREATE TABLE IF NOT EXISTS training_load_day_family (
+    day TEXT NOT NULL,
+    family TEXT NOT NULL,
+    trimp REAL NOT NULL DEFAULT 0,
+    tss REAL NOT NULL DEFAULT 0,
+    ctl REAL,
+    atl REAL,
+    tsb REAL,
+    PRIMARY KEY (day, family)
+);
+
+-- Daily subjective check-in (one row per day; last write wins).
+CREATE TABLE IF NOT EXISTS checkins (
+    day TEXT PRIMARY KEY,
+    overall INTEGER,
+    legs INTEGER,
+    sleep_feel INTEGER,
+    stress INTEGER,
+    alcohol_units REAL,
+    ill INTEGER,
+    note TEXT,
+    created_at TEXT NOT NULL
+);
+
+-- Composite readiness 0-100 with its sub-parts kept so the UI can show "why".
+CREATE TABLE IF NOT EXISTS readiness_day (
+    day TEXT PRIMARY KEY,
+    score INTEGER,
+    band TEXT,
+    hrv_part REAL,
+    sleep_part REAL,
+    rhr_part REAL,
+    load_part REAL,
+    checkin_part REAL,
+    inputs_json TEXT,
+    computed_at TEXT NOT NULL
+);
+
+-- Ride/run/swim/strength metrics per activity (NP/IF, EF, decoupling, etc).
+-- One row per activity; sparse columns per family.
+CREATE TABLE IF NOT EXISTS ride_metrics (
+    activity_id INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,
+    family TEXT NOT NULL,
+    np REAL,
+    if_ REAL,
+    tss REAL,
+    hrtss REAL,
+    rtss REAL,
+    stss REAL,
+    rpetss REAL,
+    ef REAL,
+    pacing_cv REAL,
+    fade_pct REAL,
+    decoupling_pct REAL,
+    ftp_at_time REAL,
+    lthr_at_time INTEGER,
+    threshold_pace_at_time REAL,
+    css_at_time REAL,
+    computed_at TEXT NOT NULL
+);
+
+-- Time spent in each zone on each axis (hr | power | pace | stroke).
+CREATE TABLE IF NOT EXISTS time_in_zone (
+    activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    axis TEXT NOT NULL,
+    zone INTEGER NOT NULL,
+    seconds REAL NOT NULL,
+    PRIMARY KEY (activity_id, axis, zone)
+);
+
+-- Detected climbs within an activity (for trail/bike).
+CREATE TABLE IF NOT EXISTS climbs (
+    activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    idx INTEGER NOT NULL,
+    start_offset_s REAL NOT NULL,
+    end_offset_s REAL NOT NULL,
+    length_m REAL NOT NULL,
+    avg_gradient REAL,
+    max_gradient REAL,
+    vam REAL,
+    PRIMARY KEY (activity_id, idx)
+);
+
+-- Mean-maximum power curve (bike + run-power).
+CREATE TABLE IF NOT EXISTS mean_max_power (
+    activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    window_s INTEGER NOT NULL,
+    watts REAL NOT NULL,
+    PRIMARY KEY (activity_id, window_s)
+);
+
+-- Mean-maximum pace curve (run/swim).
+CREATE TABLE IF NOT EXISTS mean_max_pace (
+    activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    window_s INTEGER NOT NULL,
+    metres_per_s REAL NOT NULL,
+    PRIMARY KEY (activity_id, window_s)
+);
+
+-- 100 m / lap splits for swim.
+CREATE TABLE IF NOT EXISTS swim_splits (
+    activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    idx INTEGER NOT NULL,
+    distance_m REAL,
+    time_s REAL,
+    strokes INTEGER,
+    swolf REAL,
+    PRIMARY KEY (activity_id, idx)
+);
+
+-- Automatic interval detection (work / rest segments with averages).
+CREATE TABLE IF NOT EXISTS detected_intervals (
+    activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+    idx INTEGER NOT NULL,
+    start_offset_s REAL NOT NULL,
+    end_offset_s REAL NOT NULL,
+    work_or_rest TEXT NOT NULL,
+    avg_hr REAL,
+    avg_power REAL,
+    avg_pace REAL,
+    PRIMARY KEY (activity_id, idx)
+);
+
+-- Running VDOT: a running state we update slowly (±0.5 per confirmed event).
+CREATE TABLE IF NOT EXISTS vdot_state (
+    day TEXT PRIMARY KEY,
+    vdot REAL NOT NULL,
+    source TEXT NOT NULL,
+    confidence REAL NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS vdot_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    day TEXT NOT NULL,
+    delta REAL NOT NULL,
+    reason TEXT NOT NULL,
+    sessions_json TEXT
+);
+
+-- Threshold staleness detector; never overwrites stored user values.
+CREATE TABLE IF NOT EXISTS thresholds_staleness (
+    sport_key TEXT PRIMARY KEY,
+    stored REAL,
+    suggested REAL,
+    evidence_json TEXT,
+    computed_at TEXT NOT NULL
+);
 """
 
 
@@ -196,7 +383,7 @@ def connect(path: Path) -> sqlite3.Connection:
     return conn
 
 
-SCHEMA_VERSION = 2  # bump when a migration is added; stored in PRAGMA user_version
+SCHEMA_VERSION = 3  # bump when a migration is added; stored in PRAGMA user_version
 
 
 def _add_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:

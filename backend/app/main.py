@@ -160,7 +160,42 @@ def create_app(
     finally:
         _conn.close()
     scanner = efforts.EffortScanner(settings)
-    manager = SyncManager(settings, box, client_factory, after_sync=scanner.start,
+    # P2 (2026-11-05): post-sync hook also updates coach-maths tables so the
+    # dashboard reflects the latest activities. Every step is best-effort;
+    # a failure never fails the sync.
+    from .coach_maths import load as _cm_load
+    from .coach_maths import readiness as _cm_readiness
+    from .coach_maths import staleness as _cm_staleness
+    from .coach_maths.ride_analysis import RideScanner
+    ride_scanner = RideScanner(settings)
+
+    def _after_sync() -> None:
+        try:
+            scanner.start()
+        except Exception:
+            pass
+        try:
+            ride_scanner.start()
+        except Exception:
+            pass
+        _conn_h = db.connect(settings.db_path)
+        try:
+            try:
+                _cm_load.recompute_training_load(_conn_h)
+            except Exception:
+                pass
+            try:
+                _cm_readiness.recompute_today(_conn_h)
+            except Exception:
+                pass
+            try:
+                _cm_staleness.recompute_all(_conn_h)
+            except Exception:
+                pass
+        finally:
+            _conn_h.close()
+
+    manager = SyncManager(settings, box, client_factory, after_sync=_after_sync,
                           runtime_secrets=runtime_secrets)
     failures: dict[str, list[float]] = defaultdict(list)
     backups = backup.BackupManager(settings, box)
@@ -603,6 +638,8 @@ def create_app(
         return {"history": bodymod.weight_history(conn)[-365:]}
 
     app.include_router(make_router(lib, get_conn, current_user))
+    from .routers.coach_math import make_router as _cm_make_router
+    app.include_router(_cm_make_router(get_conn, current_user))
 
     @app.get("/api/references")
     def references_list(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
