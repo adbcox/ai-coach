@@ -189,6 +189,32 @@ export interface CoachReply {
   rounds: number;
   finish_reason: string | null;
 }
+export interface RideMetrics {
+  activity_id: number;
+  family: string | null;
+  np: number | null;
+  if_: number | null;
+  tss: number | null;
+  ef: number | null;
+  decoupling_pct: number | null;
+  computed_at?: string | null;
+  [k: string]: unknown;
+}
+export interface PowerCurvePoint { window_s: number; watts?: number | null; metres_per_s?: number | null }
+export interface PowerCurve {
+  activity_id: number;
+  power: { window_s: number; watts: number }[];
+  pace: { window_s: number; metres_per_s: number }[];
+}
+export interface Climb {
+  idx: number; start_offset_s: number; end_offset_s: number;
+  length_m: number; avg_gradient: number; max_gradient: number; vam: number;
+}
+export interface Interval {
+  idx: number; start_offset_s: number; end_offset_s: number;
+  work_or_rest: "work" | "rest";
+  avg_hr: number | null; avg_power: number | null; avg_pace: number | null;
+}
 
 export async function restoreBackup(file: File, passphrase: string): Promise<RestoreSummary> {
   const res = await fetch("/api/restore", {
