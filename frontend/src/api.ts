@@ -215,6 +215,22 @@ export interface Interval {
   work_or_rest: "work" | "rest";
   avg_hr: number | null; avg_power: number | null; avg_pace: number | null;
 }
+export interface Correlation {
+  x: string; y: string; rho: number; n: number; p?: number | null;
+  lag_days?: number; note?: string;
+}
+export interface CorrelationsList { rows: Correlation[]; note: string }
+export interface Disagreement {
+  activity_id: number;
+  disagreement_score: number;
+  cause: string;
+  confidence: number;
+  evidence: Record<string, unknown>;
+  computed_at: string;
+}
+export interface ReadinessHistory {
+  days: { day: string; score: number | null; band: "green"|"yellow"|"red"|null }[];
+}
 
 export async function restoreBackup(file: File, passphrase: string): Promise<RestoreSummary> {
   const res = await fetch("/api/restore", {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ActivityDetail as Detail, api, Climb, CoachReply, PowerCurve,
-  RideMetrics, SamplesData,
+  ActivityDetail as Detail, api, Climb, CoachReply, Disagreement,
+  PowerCurve, RideMetrics, SamplesData,
 } from "../api";
 import LinkedCharts, { HrZone, ZONE_COLORS } from "../components/LinkedCharts";
 import PowerCurveChart from "../components/PowerCurveChart";
@@ -38,11 +38,13 @@ export default function ActivityDetail({ id, back }: { id: number; back: () => v
   const [pcurve, setPcurve] = useState<PowerCurve | null>(null);
   const [climbs, setClimbs] = useState<Climb[]>([]);
   const [coach, setCoach] = useState<CoachReply | null>(null);
+  const [disagreement, setDisagreement] = useState<Disagreement | null>(null);
   const [section, setSection] = useState<SectionKey>("overview");
   const [error, setError] = useState("");
 
   useEffect(() => {
-    setDetail(null); setSamples(null); setMetrics(null); setPcurve(null); setClimbs([]); setCoach(null);
+    setDetail(null); setSamples(null); setMetrics(null); setPcurve(null);
+    setClimbs([]); setCoach(null); setDisagreement(null);
     api<{ hr_zones: HrZone[] }>("/preferences").then((p) => setZones(p.hr_zones)).catch(() => undefined);
     api<Detail>(`/activities/${id}`)
       .then((d) => { setDetail(d); setIsRace(!!(d as unknown as { is_race?: boolean }).is_race); })
@@ -52,6 +54,7 @@ export default function ActivityDetail({ id, back }: { id: number; back: () => v
     api<PowerCurve>(`/activities/${id}/power_curve`).then(setPcurve).catch(() => undefined);
     api<{ climbs: Climb[] }>(`/activities/${id}/climbs`).then((d) => setClimbs(d.climbs)).catch(() => undefined);
     api<CoachReply>(`/coach/ride/${id}`, "POST").then(setCoach).catch(() => undefined);
+    api<Disagreement>(`/activities/${id}/disagreement`).then(setDisagreement).catch(() => undefined);
   }, [id]);
 
   const onHover = useCallback((i: number | null) => setHover(i), []);
@@ -137,6 +140,13 @@ export default function ActivityDetail({ id, back }: { id: number; back: () => v
       </div>
 
       {coach && <section className="card swo-note" style={{ margin: 0 }}>{coach.reply}</section>}
+      {disagreement && disagreement.disagreement_score >= 1 && (
+        <section className="card disagreement">
+          <strong>Power/HR mismatch ({Math.round(disagreement.disagreement_score)}):</strong>{" "}
+          <span>{disagreement.cause.replace(/_/g, " ")}</span>
+          <span className="muted"> · confidence {Math.round(disagreement.confidence * 100)}%</span>
+        </section>
+      )}
 
       <div className="ride-body">
         <nav className="ride-nav" aria-label="Sections">
