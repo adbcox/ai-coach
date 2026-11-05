@@ -42,6 +42,17 @@ class Settings:
     backfill_window_start: str = "23:00"     # HH:MM, inclusive
     backfill_window_end: str = "06:00"       # HH:MM, exclusive (next day if < start)
     backfill_window_tz: str = "America/New_York"
+    # P2b life feeds. Each secret is mounted as a runtime secret FILE by the
+    # Mini-side launcher (same pattern as the Garmin key); the container never
+    # sees Infisical credentials. All three are optional — a missing file just
+    # disables the corresponding feed with an audit-log line.
+    calendar_ics_url_file: Path | None = None
+    hass_token_file: Path | None = None
+    hass_base_url: str = "http://ha.internal:8123"
+    # Open-Meteo archive is key-free; we just need Adrian's home coordinates
+    # to resolve "weather on this day" for daily rollups.
+    home_latitude: float | None = None
+    home_longitude: float | None = None
 
     @property
     def db_path(self) -> Path:
@@ -80,4 +91,13 @@ class Settings:
             backfill_window_start=os.environ.get("AEC_BACKFILL_WINDOW_START", "23:00"),
             backfill_window_end=os.environ.get("AEC_BACKFILL_WINDOW_END", "06:00"),
             backfill_window_tz=os.environ.get("AEC_BACKFILL_WINDOW_TZ", "America/New_York"),
+            calendar_ics_url_file=Path(os.environ["AEC_CALENDAR_ICS_URL_FILE"])
+                if os.environ.get("AEC_CALENDAR_ICS_URL_FILE") else None,
+            hass_token_file=Path(os.environ["AEC_HASS_TOKEN_FILE"])
+                if os.environ.get("AEC_HASS_TOKEN_FILE") else None,
+            hass_base_url=os.environ.get("AEC_HASS_BASE_URL", "http://ha.internal:8123"),
+            home_latitude=float(os.environ["AEC_HOME_LATITUDE"])
+                if os.environ.get("AEC_HOME_LATITUDE") else None,
+            home_longitude=float(os.environ["AEC_HOME_LONGITUDE"])
+                if os.environ.get("AEC_HOME_LONGITUDE") else None,
         )

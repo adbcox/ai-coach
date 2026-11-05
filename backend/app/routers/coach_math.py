@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 
@@ -202,5 +202,86 @@ def make_router(get_conn, current_user):
         except Exception:
             pass
         return {"ok": True, "day": today}
+
+    # ------------------------------ P2b: correlations / disagreement / weather / suggest ---
+
+    @r.get("/api/correlations")
+    def correlations(y: str | None = None, min_abs_rho: float = 0.25,
+                     limit: int = 20, conn=Depends(get_conn)) -> dict:
+        from ..coach_maths import correlate
+        rows = correlate.top_for(conn, y=y, min_abs_rho=min_abs_rho, limit=limit)
+        return {"rows": rows, "note": "association, not cause"}
+
+    @r.get("/api/activities/{activity_id}/disagreement")
+    def ride_disagreement(activity_id: int, conn=Depends(get_conn)) -> dict:
+        row = conn.execute(
+            "SELECT activity_id, disagreement_score, cause, confidence, "
+            "evidence_json, computed_at FROM ride_disagreement "
+            "WHERE activity_id = ?", (activity_id,),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "No disagreement row for this activity.")
+        import json
+        d = dict(row)
+        try:
+            d["evidence"] = json.loads(d.pop("evidence_json") or "{}")
+        except (ValueError, TypeError):
+            d["evidence"] = {}
+        return d
+
+    @r.get("/api/weather/day/{day}")
+    def weather_day_route(day: str, conn=Depends(get_conn)) -> dict:
+        row = conn.execute(
+            "SELECT day, temp_min_c, temp_max_c, apparent_mean_c, dew_point_mean_c, "
+            "humidity_mean_pct, precip_mm, fetched_at FROM weather_day WHERE day = ?",
+            (day,),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, f"No weather for {day}.")
+        return dict(row)
+
+    @r.get("/api/weather/activity/{activity_id}")
+    def weather_for_activity(activity_id: int, conn=Depends(get_conn)) -> dict:
+        row = conn.execute(
+            "SELECT aw.activity_id, a.start_time, aw.feels_like_c, aw.temp_c, "
+            "aw.dew_point_c, aw.humidity_pct, aw.wind_m_s, aw.precip_mm, "
+            "aw.source, aw.fetched_at "
+            "FROM activity_weather aw "
+            "LEFT JOIN activities a ON a.id = aw.activity_id "
+            "WHERE aw.activity_id = ?",
+            (activity_id,),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "No weather for this activity.")
+        return dict(row)
+
+    @r.get("/api/suggest/routine")
+    def routine_profile_route(conn=Depends(get_conn)) -> dict:
+        from ..coach_maths import routine as _routine
+        latest = _routine.latest(conn)
+        if latest is None:
+            raise HTTPException(404, "No routine profile computed yet.")
+        return latest
+
+    @r.get("/api/suggest/today")
+    def suggest_today_route(conn=Depends(get_conn)) -> dict:
+        from ..coach_maths import suggest
+        return suggest.suggest_today(conn)
+
+    @r.post("/api/suggest/today")
+    def suggest_feedback(
+        user_action: str = Body(..., embed=True, pattern="^(did_it|swapped|ignored)$"),
+        conn=Depends(get_conn),
+    ) -> dict:
+        today = date.today().isoformat()
+        row = conn.execute(
+            "SELECT id FROM suggestion_history WHERE day = ? ORDER BY id DESC LIMIT 1",
+            (today,),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "No suggestion recorded for today.")
+        from ..coach_maths import suggest
+        suggest.record_feedback(conn, int(row["id"]), user_action)
+        return {"ok": True, "suggestion_id": int(row["id"])}
 
     return r

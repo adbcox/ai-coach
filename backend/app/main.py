@@ -10,7 +10,7 @@ import time
 import uuid
 from collections import defaultdict
 from collections.abc import Iterator
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
@@ -167,6 +167,15 @@ def create_app(
     from .coach_maths import readiness as _cm_readiness
     from .coach_maths import staleness as _cm_staleness
     from .coach_maths.ride_analysis import RideScanner
+    # P2b: life feeds + correlation + disagreement + nightly routine/suggest.
+    from .coach_maths import correlate as _cm_correlate
+    from .coach_maths import pwr_hr_disagreement as _cm_disagreement
+    from .coach_maths import routine as _cm_routine
+    from .coach_maths import suggest as _cm_suggest
+    from .feeds import calendar_ics as _feed_cal
+    from .feeds import homeassistant as _feed_hass
+    from .feeds import life_signal as _feed_life
+    from .feeds import weather as _feed_weather
     ride_scanner = RideScanner(settings)
 
     def _after_sync() -> None:
@@ -180,18 +189,30 @@ def create_app(
             pass
         _conn_h = db.connect(settings.db_path)
         try:
-            try:
-                _cm_load.recompute_training_load(_conn_h)
-            except Exception:
-                pass
-            try:
-                _cm_readiness.recompute_today(_conn_h)
-            except Exception:
-                pass
-            try:
-                _cm_staleness.recompute_all(_conn_h)
-            except Exception:
-                pass
+            for step in (
+                lambda: _cm_load.recompute_training_load(_conn_h),
+                lambda: _cm_readiness.recompute_today(_conn_h),
+                lambda: _cm_staleness.recompute_all(_conn_h),
+                # P2b additions (all best-effort; missing creds short-circuit inside):
+                lambda: _feed_weather.backfill_pending(_conn_h, settings),
+                lambda: _feed_cal.sync(_conn_h, settings),
+                lambda: _feed_hass.sync(_conn_h, settings),
+                lambda: _feed_life.recompute_range(
+                    _conn_h,
+                    start=(datetime.now(UTC).date() - timedelta(days=30)),
+                    end=datetime.now(UTC).date(),
+                ),
+                lambda: _cm_correlate.recompute_all(_conn_h),
+                lambda: _cm_disagreement.recompute_all(_conn_h),
+                lambda: _cm_routine.recompute_profile(_conn_h),
+                lambda: _cm_suggest.write_suggestion(
+                    _conn_h, _cm_suggest.suggest_today(_conn_h)
+                ),
+            ):
+                try:
+                    step()
+                except Exception:
+                    continue
         finally:
             _conn_h.close()
 
