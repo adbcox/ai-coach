@@ -368,6 +368,123 @@ CREATE TABLE IF NOT EXISTS thresholds_staleness (
     evidence_json TEXT,
     computed_at TEXT NOT NULL
 );
+
+-- P2b: life-data feeds. All pure-pull, idempotent.
+-- Weather per activity: nearest-hour ERA5 archive from Open-Meteo.
+CREATE TABLE IF NOT EXISTS activity_weather (
+    activity_id INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,
+    temp_c REAL,
+    feels_like_c REAL,
+    dew_point_c REAL,
+    humidity_pct REAL,
+    wind_m_s REAL,
+    precip_mm REAL,
+    source TEXT NOT NULL,
+    fetched_at TEXT NOT NULL
+);
+
+-- Weather daily context (one row per day).
+CREATE TABLE IF NOT EXISTS weather_day (
+    day TEXT PRIMARY KEY,
+    temp_min_c REAL,
+    temp_max_c REAL,
+    apparent_mean_c REAL,
+    dew_point_mean_c REAL,
+    humidity_mean_pct REAL,
+    precip_mm REAL,
+    fetched_at TEXT NOT NULL
+);
+
+-- Calendar read-only mirror from an ICS URL.
+CREATE TABLE IF NOT EXISTS calendar_events (
+    id TEXT PRIMARY KEY,
+    day TEXT NOT NULL,
+    start_time TEXT,
+    end_time TEXT,
+    summary TEXT,
+    is_travel INTEGER NOT NULL DEFAULT 0,
+    is_busy INTEGER NOT NULL DEFAULT 0,
+    source TEXT NOT NULL,
+    fetched_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_day ON calendar_events(day);
+
+-- Home Assistant history (long-term, bucketed per entity).
+CREATE TABLE IF NOT EXISTS ha_series (
+    entity_id TEXT NOT NULL,
+    ts TEXT NOT NULL,
+    value REAL,
+    PRIMARY KEY (entity_id, ts)
+);
+CREATE INDEX IF NOT EXISTS idx_ha_series_ts ON ha_series(ts);
+
+CREATE TABLE IF NOT EXISTS ha_daily (
+    day TEXT PRIMARY KEY,
+    bedroom_temp_c_night REAL,
+    bedroom_rh_pct_night REAL,
+    bed_in_time TEXT,
+    bed_out_time TEXT,
+    wake_time TEXT,
+    computed_at TEXT NOT NULL
+);
+
+-- Life signal rollup (derived).
+CREATE TABLE IF NOT EXISTS life_signal_day (
+    day TEXT PRIMARY KEY,
+    travel INTEGER NOT NULL DEFAULT 0,
+    busy INTEGER NOT NULL DEFAULT 0,
+    alcohol_units REAL,
+    sick INTEGER NOT NULL DEFAULT 0,
+    note TEXT,
+    computed_at TEXT NOT NULL
+);
+
+-- Correlations (association, not cause). One row per (y, x, lag_days).
+CREATE TABLE IF NOT EXISTS correlations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    y TEXT NOT NULL,
+    x TEXT NOT NULL,
+    lag_days INTEGER NOT NULL,
+    n INTEGER NOT NULL,
+    rho REAL,
+    ci_low REAL,
+    ci_high REAL,
+    method TEXT NOT NULL,
+    p_approx REAL,
+    computed_at TEXT NOT NULL,
+    UNIQUE (y, x, lag_days)
+);
+
+-- Power-vs-HR disagreement per ride.
+CREATE TABLE IF NOT EXISTS ride_disagreement (
+    activity_id INTEGER PRIMARY KEY REFERENCES activities(id) ON DELETE CASCADE,
+    disagreement_score REAL NOT NULL,
+    cause TEXT,
+    confidence REAL,
+    evidence_json TEXT,
+    computed_at TEXT NOT NULL
+);
+
+-- Nightly routine profile. One row per nightly run; latest = current.
+CREATE TABLE IF NOT EXISTS routine_profile (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    computed_at TEXT NOT NULL,
+    profile_json TEXT NOT NULL
+);
+
+-- Daily suggestion with feedback and matched actual activity.
+CREATE TABLE IF NOT EXISTS suggestion_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    day TEXT NOT NULL,
+    generated_at TEXT NOT NULL,
+    primary_json TEXT NOT NULL,
+    alternative_json TEXT,
+    user_action TEXT,
+    actual_activity_id INTEGER REFERENCES activities(id) ON DELETE SET NULL,
+    actual_similarity REAL,
+    recorded_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_suggestion_history_day ON suggestion_history(day);
 """
 
 
@@ -383,7 +500,7 @@ def connect(path: Path) -> sqlite3.Connection:
     return conn
 
 
-SCHEMA_VERSION = 3  # bump when a migration is added; stored in PRAGMA user_version
+SCHEMA_VERSION = 4  # bump when a migration is added; stored in PRAGMA user_version
 
 
 def _add_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
