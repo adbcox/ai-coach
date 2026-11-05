@@ -215,7 +215,6 @@ def test_scheduler_runs_when_due_then_waits_and_skips_when_manual_only(app_with_
 def test_scheduled_backup_never_includes_the_garmin_key(app_with_share):
     import tarfile
     client, settings, share = app_with_share
-    client.put("/api/providers/garmin", json={"api_key": API_KEY})
     client.put("/api/backups/smb", json=GOOD)
     client.app.state.backup_manager.maybe_run_scheduled()
     tar_path = next((share.root / "BK" / "coach").glob("*.tar"))
@@ -226,7 +225,6 @@ def test_scheduled_backup_never_includes_the_garmin_key(app_with_share):
 
 def test_sync_still_works_alongside_backups(app_with_share):
     client, _, _ = app_with_share
-    client.put("/api/providers/garmin", json={"api_key": API_KEY})
     client.post("/api/sync?mode=background")
     assert wait_idle(client)["last_sync"]["status"] == "ok"
     assert backup is not None

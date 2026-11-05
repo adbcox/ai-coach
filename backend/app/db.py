@@ -20,12 +20,18 @@ CREATE TABLE IF NOT EXISTS sessions (
     expires_at REAL NOT NULL
 );
 
--- One row per provider. The secret is encrypted (see crypto.py), never plain text.
+-- One row per provider. For legacy rows the secret is encrypted (see crypto.py)
+-- and `credential_source` is NULL (treated as 'db'). P1 adds the file-backed
+-- path: when a Mini-side launcher injects the key via a runtime secret file
+-- (AEC_GARMIN_API_KEY_FILE), credential_source='file', secret_enc IS NULL,
+-- and file_path records the mount. The DB never stores the key in that mode.
 CREATE TABLE IF NOT EXISTS provider_credentials (
     provider TEXT PRIMARY KEY,
-    secret_enc BLOB NOT NULL,
+    secret_enc BLOB,
     updated_at TEXT NOT NULL,
-    validated_at TEXT
+    validated_at TEXT,
+    credential_source TEXT,
+    file_path TEXT
 );
 
 -- Every activity is stored with its source and the source's own id, so a second
@@ -190,7 +196,7 @@ def connect(path: Path) -> sqlite3.Connection:
     return conn
 
 
-SCHEMA_VERSION = 1  # bump when a migration is added; stored in PRAGMA user_version
+SCHEMA_VERSION = 2  # bump when a migration is added; stored in PRAGMA user_version
 
 
 def _add_column(conn: sqlite3.Connection, table: str, column: str, ddl: str) -> None:
@@ -206,6 +212,11 @@ def init_db(path: Path) -> None:
         # upgrades for databases created by earlier versions
         _add_column(conn, "sync_runs", "mode", "mode TEXT")
         _add_column(conn, "sync_runs", "scheduled", "scheduled INTEGER NOT NULL DEFAULT 0")
+        # P1 (schema v2): provider_credentials gains a credential_source + file_path
+        # so a key injected as a runtime secret file can leave secret_enc NULL.
+        # Existing rows (secret_enc NOT NULL) are implicitly credential_source='db'.
+        _add_column(conn, "provider_credentials", "credential_source", "credential_source TEXT")
+        _add_column(conn, "provider_credentials", "file_path", "file_path TEXT")
         conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
         conn.commit()
     finally:

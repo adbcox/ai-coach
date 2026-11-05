@@ -1,0 +1,52 @@
+services:
+  coach:
+    # The Mini-side launcher (platform/bin/coach-start.sh) builds this image
+    # once and then only runs it; CI publishes a tagged image later.
+    build:
+      context: .
+      target: slim
+      args:
+        GIT_SHA: "p1-mini"
+    image: ai-endurance-coach:p1-mini
+    container_name: ai-endurance-coach
+    restart: unless-stopped
+    # Bind to loopback only; Caddy on the Mini reverse-proxies coach.internal -> 127.0.0.1:26219.
+    ports:
+      - "127.0.0.1:26219:26219"
+    # P1: data on the platform volume, so backups cover it.
+    # The Garmin key is NOT here — it is bind-mounted as a read-only secret
+    # by the launcher, into a path the app treats as the only source of truth.
+    volumes:
+      - /Volumes/platform/coach/data:/data
+      - type: bind
+        source: ${COACH_SECRET_FILE:?launcher must export COACH_SECRET_FILE}
+        target: /run/secrets/garmin_api_key
+        read_only: true
+    environment:
+      AEC_DATA_DIR: /data
+      # Tell the app to load the Garmin key from the bind-mounted secret file.
+      AEC_GARMIN_API_KEY_FILE: /run/secrets/garmin_api_key
+      # Caddy terminates TLS; the app stays HTTP-only on loopback.
+      AEC_SECURE_COOKIES: "false"
+      # Conservative backfill defaults (dispatch-05 P1). Override per host.
+      AEC_BACKFILL_DELAY_S: "3"
+      AEC_BACKFILL_DAILY_CAP: "2000"
+      AEC_BACKFILL_PAUSE_HOURS: "24"
+      AEC_BACKFILL_RATE_HALVING: "true"
+      # Override from the host (e.g. 0 to keep backfill paused while recovering).
+      AEC_SYNC_INTERVAL_HOURS: "${AEC_SYNC_INTERVAL_HOURS:-6}"
+      # Default UID matches the Dockerfile; Mini is single-tenant.
+      PUID: "1000"
+      PGID: "1000"
+    # Minimum capabilities + no new privileges; nothing in this container
+    # legitimately needs to escalate.
+    security_opt:
+      - no-new-privileges:true
+    read_only: false  # app writes to /data; everything else is read-only via bind
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:26219/api/health',timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s

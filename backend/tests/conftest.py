@@ -80,7 +80,12 @@ def fake():
 
 @pytest.fixture
 def settings(tmp_path):
-    return Settings(data_dir=tmp_path, request_delay_s=0)
+    # P1: by default give tests a runtime key file so the app behaves like it
+    # does in production (key injected by the Mini-side launcher). Tests that
+    # specifically need an *unconfigured* app override this fixture.
+    key_file = tmp_path / "garmin_api_key"
+    key_file.write_text(API_KEY + "\n", encoding="utf-8")
+    return Settings(data_dir=tmp_path, request_delay_s=0, garmin_api_key_file=key_file)
 
 
 @pytest.fixture

@@ -27,7 +27,6 @@ def test_parse_laps_reads_garmin_split_fields():
 
 def sync_with(authed, fake, fit):
     fake.fit = fit
-    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
     assert authed.post("/api/sync").status_code == 202
     wait_idle(authed)
     return authed.get("/api/activities").json()["items"]

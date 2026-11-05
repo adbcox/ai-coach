@@ -48,24 +48,12 @@ def test_csrf_header_required(settings, fake):
                       ).status_code == 403
 
 
-def test_bad_key_rejected_and_not_stored(authed):
-    r = authed.put("/api/providers/garmin", json={"api_key": "wrong-key-123456"})
-    assert r.status_code == 400
-    assert authed.get("/api/providers/garmin").json()["configured"] is False
-
-
-def test_key_encrypted_at_rest_and_never_returned(authed, settings):
-    r = authed.put("/api/providers/garmin", json={"api_key": API_KEY})
-    assert r.status_code == 200 and API_KEY not in r.text
-    assert API_KEY not in authed.get("/api/providers/garmin").text
-    for path in settings.data_dir.rglob("*"):
-        if path.is_file() and path.name != "master.key":
-            assert API_KEY.encode() not in path.read_bytes(), path
+# P1: key is provisioned from a runtime secret file by the Mini-side launcher.
+# Tests for the UI being read-only and the key never reaching the DB now live
+# in test_key_ui_readonly.py and test_key_not_in_db.py.
 
 
 def test_sync_end_to_end_and_idempotent(authed, fake, settings):
-    assert authed.post("/api/sync").status_code == 400  # no key yet
-    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
     assert authed.post("/api/sync").status_code == 202
     s = wait_idle(authed)
     assert s["last_sync"]["status"] == "ok" and s["last_sync"]["new_activities"] == 2
@@ -81,13 +69,7 @@ def test_sync_end_to_end_and_idempotent(authed, fake, settings):
     assert authed.get("/api/activities").json()["total"] == 2
 
 
-def test_key_removal(authed):
-    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
-    assert authed.delete("/api/providers/garmin").json()["configured"] is False
-
-
 def _synced(authed):
-    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
     authed.post("/api/sync")
     wait_idle(authed)
     return authed.get("/api/activities").json()["items"]

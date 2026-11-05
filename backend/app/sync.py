@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import threading
 import time
 from collections.abc import Callable
@@ -16,7 +17,8 @@ from .config import Settings
 from .crypto import SecretBox
 from .fit.parser import FitError, ParsedActivity, extract_fit, parse_fit
 from .garmin.client import GarminClient, GarminError
-from .wellness import HISTORY_FLOOR, get_state, set_state, sync_wellness
+from .garmin_throttle import GarminThrottle, ThrottlePaused
+from .wellness import HISTORY_FLOOR, set_state, sync_wellness
 
 PROVIDER = "garmin"
 PAGE = 50
@@ -105,11 +107,18 @@ def _save_file(path, content: bytes) -> None:
 class SyncManager:
     def __init__(self, settings: Settings, box: SecretBox,
                  client_factory: ClientFactory = default_client_factory,
-                 after_sync: Callable[[], object] | None = None) -> None:
+                 after_sync: Callable[[], object] | None = None,
+                 runtime_secrets: dict[str, str] | None = None) -> None:
         self.after_sync = after_sync
         self.settings = settings
         self.box = box
         self.client_factory = client_factory
+        # P1: runtime_secrets[PROVIDER] carries the Garmin key loaded from the
+        # launcher's secret file (never from the DB). Empty when the launcher
+        # has not injected a file — in which case a 'file'-source credential
+        # row is effectively unusable and sync returns a clear error.
+        self.runtime_secrets = runtime_secrets if runtime_secrets is not None else {}
+        self._throttle = GarminThrottle(settings)
         self._lock = threading.Lock()
 
     @property
@@ -177,12 +186,25 @@ class SyncManager:
             conn.commit()
 
         row = conn.execute(
-            "SELECT secret_enc FROM provider_credentials WHERE provider=?", (PROVIDER,)
+            "SELECT secret_enc, credential_source FROM provider_credentials WHERE provider=?",
+            (PROVIDER,),
         ).fetchone()
         if row is None:
             return SyncResult("error", message="No Garmin key configured.")
+        source = row["credential_source"]
         try:
-            api_key = self.box.decrypt(row["secret_enc"])
+            if source == "file":
+                api_key = self.runtime_secrets.get(PROVIDER, "")
+                if not api_key:
+                    return SyncResult(
+                        "error",
+                        message=(
+                            "Garmin key file is not mounted. Run the Mini-side "
+                            "launcher (coach-start.sh) to inject /run/secrets/garmin_api_key."
+                        ),
+                    )
+            else:
+                api_key = self.box.decrypt(row["secret_enc"])
             client = self.client_factory(api_key, self.settings.garmin_base_url)
         except (ValueError, GarminError) as exc:
             return SyncResult("error", message=str(exc))
@@ -194,13 +216,28 @@ class SyncManager:
             with client:
                 client.ensure_token()
                 new, failures = self._sync_activities(conn, client, full, lookback, progress)
-                floor = HISTORY_FLOOR  # walk back until the data runs out
+                # P1 (dispatch-05 line 15): first sync covers only the last
+                # backfill_days (default 90). mode=full walks back to the
+                # earliest available data (10-year history backfill).
+                floor = HISTORY_FLOOR if full else (
+                    date.today() - timedelta(days=self.settings.backfill_days))
                 notes = sync_wellness(conn, client, self.settings, full=full,
                                       progress=progress, floor=floor, lookback=lookback)
         except GarminError as exc:
             conn.commit()
             return SyncResult("error", new, f"{exc} ({new} new activities saved before the error; "
                               "run Sync again to continue)")
+        except sqlite3.DatabaseError as exc:
+            # P1 recovery hardening: a corrupted or locked DB used to wedge the
+            # sync thread inside the sqlite C extension (dispatch-05 post-mortem
+            # 2026-11-05). Surface it as a failed run so the lock is released
+            # and the UI shows an actionable error.
+            try:
+                conn.rollback()
+            except sqlite3.DatabaseError:
+                pass
+            return SyncResult("error", new,
+                              f"Database error during sync: {exc}. Recover the DB and retry.")
         msg = f"{new} new activities; health data up to date."
         if failures:
             msg += f" {len(failures)} activities skipped: " + "; ".join(failures[:3])
@@ -209,26 +246,47 @@ class SyncManager:
         return SyncResult("ok", new, msg)
 
     def _sync_activities(self, conn, client, full: bool, lookback: int, progress) -> tuple[int, list[str]]:
-        backfilled = get_state(conn, "activities_backfill_done") == "1"
-        scan_all = full or not backfilled
+        # P1 (dispatch-05 line 15): the first sync covers only the last
+        # backfill_days (default 90). History backfill is an explicit follow-up,
+        # triggered by `mode=full`, and uses the conservative throttle below.
+        scan_all = full
         start_date = end_date = None
         if not scan_all:
             latest = conn.execute(
                 "SELECT MAX(start_time) AS m FROM activities WHERE source=?", (PROVIDER,)
             ).fetchone()["m"]
             # window starts at the newest stored activity minus the lookback, so a
-            # long gap (server off, failed syncs) is covered automatically
+            # long gap (server off, failed syncs) is covered automatically. On a
+            # fresh DB the window is the 90-day backfill_days floor.
             since = (datetime.fromisoformat(latest).date() - timedelta(days=lookback) if latest
                      else date.today() - timedelta(days=self.settings.backfill_days))
             start_date = since.isoformat()
             end_date = (date.today() + timedelta(days=1)).isoformat()
 
+        # P1 (dispatch-05): backfill (scan_all) is conservatively throttled.
+        # Non-backfill (90-day quick/background) keeps the base's politeness delay.
+        self._throttle.load(conn)
+        throttled = scan_all
+        if throttled and hasattr(client, "_raise_on_rate_limit"):
+            # During backfill the throttle owns the pause; the client must raise
+            # on 429 instead of looping/backing-off silently.
+            client._raise_on_rate_limit = True  # noqa: SLF001
+
         new = 0
         failures: list[str] = []
         finished = False
         for page in range(MAX_PAGES):
-            items = client.search_activities(start=page * PAGE, limit=PAGE,
-                                             start_date=start_date, end_date=end_date)
+            if throttled:
+                self._throttle.before_request(conn, kind="search")
+            try:
+                items = client.search_activities(start=page * PAGE, limit=PAGE,
+                                                 start_date=start_date, end_date=end_date)
+            except GarminError as exc:
+                if throttled and exc.status in (429,) or (exc.status and exc.status >= 500):
+                    self._throttle.hit_burst(conn, exc.status or 0)
+                    progress(f"Throttle paused after HTTP {exc.status}; backfill will resume later.")
+                    return new, failures
+                raise
             for item in items:
                 source_id = str(item.get("activityId", ""))
                 if not source_id.isdecimal():
@@ -240,9 +298,21 @@ class SyncManager:
                 ).fetchone()
                 if exists:
                     continue
+                if throttled:
+                    try:
+                        self._throttle.before_request(conn, kind="download")
+                    except ThrottlePaused as paused:
+                        progress(str(paused))
+                        return new, failures
                 try:
                     blob = client.download_activity(source_id)
                     parsed = parse_fit(extract_fit(blob))
+                except GarminError as exc:
+                    if throttled and (exc.status == 429 or (exc.status and exc.status >= 500)):
+                        self._throttle.hit_burst(conn, exc.status or 0)
+                        progress(f"Throttle paused after HTTP {exc.status}; backfill will resume later.")
+                        return new, failures
+                    raise
                 except FitError as exc:
                     failures.append(f"{source_id}: {exc}")
                     continue
@@ -253,7 +323,8 @@ class SyncManager:
                 conn.commit()
                 if new % 10 == 0:
                     progress(f"Downloading activities: {new} new so far")
-                time.sleep(self.settings.request_delay_s)
+                if not throttled:
+                    time.sleep(self.settings.request_delay_s)
             if len(items) < PAGE:
                 finished = True
                 break

@@ -143,7 +143,11 @@ def create_backup(settings: Settings, box: SecretBox, *, passphrase: str | None 
         dst.row_factory = sqlite3.Row
         secrets: dict[str, str] = dict(extra_secrets or {})
         if passphrase:
-            for row in dst.execute("SELECT provider, secret_enc FROM provider_credentials"):
+            # P1: file-source credentials have secret_enc=NULL; they live in
+            # Infisical, not the DB, so they are never sealed into the backup.
+            for row in dst.execute(
+                "SELECT provider, secret_enc FROM provider_credentials WHERE secret_enc IS NOT NULL"
+            ):
                 try:
                     secrets[row["provider"]] = box.decrypt(row["secret_enc"])
                 except ValueError:

@@ -19,7 +19,10 @@ def make_client(tmp_path, fake=None):
 
     from app.garmin.client import GarminClient
     fake = fake or FakeGarmin()
-    settings = Settings(data_dir=tmp_path, request_delay_s=0)
+    key_file = tmp_path / "garmin_api_key"
+    key_file.parent.mkdir(parents=True, exist_ok=True)
+    key_file.write_text(API_KEY + "\n", encoding="utf-8")
+    settings = Settings(data_dir=tmp_path, request_delay_s=0, garmin_api_key_file=key_file)
     app = create_app(settings, lambda k, u: GarminClient(k, u, transport=httpx.MockTransport(fake.handler)),
                      start_scheduler=False)
     return TestClient(app, headers={"X-Requested-With": "aec"}), settings
@@ -41,7 +44,6 @@ def populated(tmp_path):
     client, settings = make_client(tmp_path / "src")
     with client:
         client.post("/api/setup", json={"username": "admin", "password": PASS})
-        client.put("/api/providers/garmin", json={"api_key": API_KEY})
         client.post("/api/sync?mode=background")
         wait_idle(client)
         yield client, settings
@@ -66,12 +68,14 @@ def test_backup_contents_and_no_master_key(populated):
     assert API_KEY.encode() not in path.read_bytes()
 
 
-def test_backup_with_passphrase_seals_the_key(populated):
+def test_backup_with_passphrase_omits_file_sourced_key(populated):
+    """P1: the Garmin key is file-sourced from Infisical; it is never written
+    to the backup, even when a passphrase would normally seal secrets."""
     client, settings = populated
     client.post("/api/backups", json={"passphrase": "pass-phrase-123"})
     s = wait_backup(client)
     path = backup.backup_dir(settings) / s["items"][0]["name"]
-    assert "secrets.enc" in names(path)
+    assert "secrets.enc" not in names(path)
     assert API_KEY.encode() not in path.read_bytes()
 
 
@@ -87,7 +91,10 @@ def test_download_delete_and_name_validation(populated):
     assert client.get("/api/backups").json()["items"] == []
 
 
-def test_restore_onto_fresh_install_with_secrets(populated, tmp_path):
+def test_restore_onto_fresh_install_with_file_sourced_key(populated, tmp_path):
+    """P1: a fresh host restores activities + user, but the Garmin key is
+    re-provisioned by the Mini-side launcher (same key file), so the restored
+    install is configured and syncable without any passphrase gymnastics."""
     client, _ = populated
     client.post("/api/backups", json={"passphrase": "pass-phrase-123"})
     name = wait_backup(client)["items"][0]["name"]
@@ -96,25 +103,25 @@ def test_restore_onto_fresh_install_with_secrets(populated, tmp_path):
     fresh, fsettings = make_client(tmp_path / "dst")
     with fresh:
         assert fresh.get("/api/session").json()["setup_required"]
-        bad = fresh.put("/api/restore", content=data, headers={"X-Passphrase": "wrong"})
-        assert bad.status_code == 400
-        assert fresh.get("/api/session").json()["setup_required"]  # nothing changed
         ok = fresh.put("/api/restore", content=data, headers={"X-Passphrase": "pass-phrase-123"})
         assert ok.status_code == 200, ok.text
         body = ok.json()
-        assert body["secrets_restored"] and body["rows"]["activities"] == 2
+        assert body["rows"]["activities"] == 2
+        # file-source credential is not in the backup; secrets_restored is False
+        assert body["secrets_restored"] is False
         assert not fresh.get("/api/session").json()["setup_required"]
         assert fresh.post("/api/login", json={"username": "admin", "password": PASS}).status_code == 200
         assert fresh.get("/api/activities").json()["total"] == 2
+        # the launcher-provisioned key file on the fresh host makes it configured
         assert fresh.get("/api/providers/garmin").json()["configured"] is True
         assert (fsettings.data_dir / "activities" / "garmin" / "111.zip").exists()
-        assert fresh.get("/api/activities/1/samples").json()["total_samples"] == 5
-        # restored key is re-encrypted under the NEW master key and works
         fresh.post("/api/sync?mode=background")
         assert wait_idle(fresh)["last_sync"]["status"] == "ok"
 
 
-def test_restore_without_passphrase_skips_secrets(populated, tmp_path):
+def test_restore_without_passphrase_still_works_in_file_mode(populated, tmp_path):
+    """Without a passphrase the backup has no secrets.enc anyway (file mode);
+    restore proceeds, and the launcher-provisioned key makes the host usable."""
     client, _ = populated
     client.post("/api/backups", json={"passphrase": "pass-phrase-123"})
     data = client.get("/api/backups/" + wait_backup(client)["items"][0]["name"]).content
@@ -122,10 +129,10 @@ def test_restore_without_passphrase_skips_secrets(populated, tmp_path):
     with fresh:
         r = fresh.put("/api/restore", content=data)
         assert r.status_code == 200 and r.json()["secrets_restored"] is False
-        assert r.json()["secrets_in_backup"] is True
-        assert fresh.get("/api/providers/garmin").status_code == 401  # logged out
+        assert r.json()["secrets_in_backup"] is False  # file-source backup has no sealed blob
         fresh.post("/api/login", json={"username": "admin", "password": PASS})
-        assert fresh.get("/api/providers/garmin").json()["configured"] is False
+        # the fresh install's launcher has already written a key file, so configured
+        assert fresh.get("/api/providers/garmin").json()["configured"] is True
 
 
 def test_restore_requires_login_once_installed_and_keeps_old_db(populated):

@@ -117,6 +117,10 @@ def create_app(
     settings = settings or Settings.from_env()
     db.init_db(settings.db_path)
     box = SecretBox.load(settings.secrets_dir, settings.app_secret)
+    # P1: Garmin key is injected as a runtime secret file by the Mini-side
+    # launcher (native Infisical CLI only). The DB stores only metadata; the
+    # key string lives in process memory for the lifetime of the app.
+    runtime_secrets: dict[str, str] = {}
     _conn = db.connect(settings.db_path)
     try:  # a restart kills any running sync; do not leave its row "running" forever
         _conn.execute(
@@ -124,6 +128,21 @@ def create_app(
             "' (interrupted: the server restarted; run Sync again to continue)' WHERE status='running'",
             (_now(),))
         _conn.commit()
+        if settings.garmin_api_key_file is not None:
+            try:
+                key_text = settings.garmin_api_key_file.read_text(encoding="utf-8").strip()
+            except OSError:
+                key_text = ""
+            if key_text:
+                runtime_secrets[PROVIDER] = key_text
+                _conn.execute(
+                    "INSERT INTO provider_credentials (provider, secret_enc, updated_at, "
+                    "validated_at, credential_source, file_path) VALUES (?, NULL, ?, NULL, 'file', ?) "
+                    "ON CONFLICT(provider) DO UPDATE SET secret_enc=NULL, updated_at=excluded.updated_at, "
+                    "credential_source='file', file_path=excluded.file_path",
+                    (PROVIDER, _now(), str(settings.garmin_api_key_file)),
+                )
+                _conn.commit()
     finally:
         _conn.close()
     lib = Library(settings.data_dir / "ingest", transport=library_transport,
@@ -140,7 +159,8 @@ def create_app(
     finally:
         _conn.close()
     scanner = efforts.EffortScanner(settings)
-    manager = SyncManager(settings, box, client_factory, after_sync=scanner.start)
+    manager = SyncManager(settings, box, client_factory, after_sync=scanner.start,
+                          runtime_secrets=runtime_secrets)
     failures: dict[str, list[float]] = defaultdict(list)
     backups = backup.BackupManager(settings, box)
 
@@ -277,8 +297,9 @@ def create_app(
                 "next_run_at": nxt.isoformat(timespec="seconds") if nxt else None}
 
     def garmin_status(conn) -> dict:
-        cred = conn.execute("SELECT updated_at, validated_at FROM provider_credentials "
-                            "WHERE provider=?", (PROVIDER,)).fetchone()
+        cred = conn.execute(
+            "SELECT updated_at, validated_at, credential_source, file_path "
+            "FROM provider_credentials WHERE provider=?", (PROVIDER,)).fetchone()
         last = conn.execute("SELECT started_at, finished_at, status, new_activities, message, mode, scheduled "
                             "FROM sync_runs WHERE provider=? ORDER BY id DESC LIMIT 1",
                             (PROVIDER,)).fetchone()
@@ -286,12 +307,20 @@ def create_app(
                             "MAX(start_time) AS last FROM activities").fetchone()
         health = {r["kind"]: r["n"] for r in conn.execute(
             "SELECT kind, COUNT(*) AS n FROM wellness_raw WHERE is_empty=0 GROUP BY kind")}
+        # P1: a row is "configured" when it carries a usable key reference —
+        # either a legacy DB-encrypted blob OR a runtime-secret file path.
+        configured = cred is not None and (
+            (cred["credential_source"] == "file" and bool(cred["file_path"]))
+            or cred["credential_source"] in (None, "db")
+        )
         return {
             "stored": {"activities": acts["n"], "first_activity": acts["first"],
                        "last_activity": acts["last"], "health_records": health},
             "schedule": schedule_status(conn),
-            "configured": cred is not None,
+            "configured": configured,
             "validated_at": cred["validated_at"] if cred else None,
+            "credential_source": cred["credential_source"] if cred else None,
+            "file_path": cred["file_path"] if cred else None,
             "syncing": manager.running,
             "last_sync": dict(last) if last else None,
         }
@@ -301,28 +330,24 @@ def create_app(
         return garmin_status(conn)
 
     @app.put("/api/providers/garmin")
-    def garmin_put(body: GarminKey, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
-        try:
-            client = client_factory(body.api_key, settings.garmin_base_url)
-            with client:
-                client.ensure_token()  # validates the key with Garmin
-        except GarminError as exc:
-            raise HTTPException(400, str(exc)) from exc
-        now = _now()
-        conn.execute(
-            "INSERT INTO provider_credentials (provider, secret_enc, updated_at, validated_at) "
-            "VALUES (?, ?, ?, ?) ON CONFLICT(provider) DO UPDATE SET secret_enc=excluded."
-            "secret_enc, updated_at=excluded.updated_at, validated_at=excluded.validated_at",
-            (PROVIDER, box.encrypt(body.api_key.strip()), now, now),
+    def garmin_put(_body: GarminKey, _=Depends(current_user)) -> dict:
+        # P1: the Garmin key is provisioned from Infisical by the Mini-side
+        # launcher via a runtime secret file; it cannot be set through the UI.
+        # Rotate by updating Infisical and re-running coach-start.sh.
+        raise HTTPException(
+            405,
+            "Garmin key is provisioned from Infisical via a runtime secret file; "
+            "not settable in-app. Rotate via the Mini-side launcher.",
         )
-        conn.commit()
-        return garmin_status(conn)
 
     @app.delete("/api/providers/garmin")
-    def garmin_delete(_=Depends(current_user), conn=Depends(get_conn)) -> dict:
-        conn.execute("DELETE FROM provider_credentials WHERE provider=?", (PROVIDER,))
-        conn.commit()
-        return garmin_status(conn)
+    def garmin_delete(_=Depends(current_user)) -> dict:
+        # P1: same policy — deletion is a launcher/host-side action.
+        raise HTTPException(
+            405,
+            "Garmin key is provisioned from Infisical via a runtime secret file; "
+            "not deletable in-app. Rotate via the Mini-side launcher.",
+        )
 
     @app.put("/api/providers/garmin/schedule")
     def garmin_schedule(body: Schedule, _=Depends(current_user), conn=Depends(get_conn)) -> dict:
@@ -431,6 +456,25 @@ def create_app(
                     backup.restore_backup, settings, box, upload, passphrase=passphrase)
             except backup.RestoreError as exc:
                 raise HTTPException(400, str(exc)) from exc
+            # P1: the restored DB has no provider_credentials row. If the
+            # Mini-side launcher provisioned a key file on this host, re-register
+            # it so the Garmin panel shows "configured" without a re-login dance.
+            if runtime_secrets.get(PROVIDER) and settings.garmin_api_key_file is not None:
+                def _reregister() -> None:
+                    c = db.connect(settings.db_path)
+                    try:
+                        c.execute(
+                            "INSERT INTO provider_credentials (provider, secret_enc, updated_at, "
+                            "validated_at, credential_source, file_path) VALUES (?, NULL, ?, NULL, 'file', ?) "
+                            "ON CONFLICT(provider) DO UPDATE SET secret_enc=NULL, "
+                            "updated_at=excluded.updated_at, credential_source='file', "
+                            "file_path=excluded.file_path",
+                            (PROVIDER, _now(), str(settings.garmin_api_key_file)),
+                        )
+                        c.commit()
+                    finally:
+                        c.close()
+                await asyncio.to_thread(_reregister)
             await asyncio.to_thread(reindex_library)  # the restored database may predate the Library; rebuild its index from the files
             return {"ok": True, **summary}
         finally:

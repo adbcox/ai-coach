@@ -53,6 +53,7 @@ class GarminClient:
         clock: Callable[[], float] = time.time,
         sleep: Callable[[float], None] = time.sleep,
         retry_delay: float = 5.0,
+        raise_on_rate_limit: bool = False,
     ) -> None:
         self._api_key = api_key.strip()
         if not self._api_key:
@@ -62,6 +63,9 @@ class GarminClient:
         self._clock = clock
         self._sleep = sleep
         self._retry_delay = retry_delay
+        # When true (used for backfill), a 429 raises immediately instead of
+        # retrying in a loop — the throttle layer owns the pause.
+        self._raise_on_rate_limit = raise_on_rate_limit
         self._token: str | None = None
         self._expires = 0.0
 
@@ -114,10 +118,13 @@ class GarminClient:
                 refreshed = True  # token may have been revoked/expired early: refresh once
                 self.ensure_token(force=True)
                 continue
-            if resp.status_code == 429 and rate_waits < 4:
-                rate_waits += 1  # rate limited: back off and retry
-                self._sleep(self._retry_delay * rate_waits)
-                continue
+            if resp.status_code == 429:
+                if self._raise_on_rate_limit:
+                    raise GarminError("http", "Garmin returned HTTP 429 (rate limited).", 429)
+                if rate_waits < 4:
+                    rate_waits += 1  # rate limited: back off and retry
+                    self._sleep(self._retry_delay * rate_waits)
+                    continue
             if resp.status_code in (401, 403):
                 raise GarminError("auth", "Garmin refused access (key expired or revoked?).", resp.status_code)
             if resp.status_code >= 400:

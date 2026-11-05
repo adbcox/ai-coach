@@ -20,18 +20,18 @@ def test_is_empty():
     assert not is_empty({"data": [{"x": 1}]}) and not is_empty(0)
 
 
-def test_first_sync_pulls_all_history_then_goes_incremental(authed, fake):
-    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
+def test_first_sync_is_90_days_then_full_walks_all_history(authed, fake):
+    # P1 (dispatch-05 line 15): first sync is scoped to backfill_days (90 by
+    # default). mode=full is the explicit opt-in that walks all history.
     run_sync(authed)
     first = fake.search_params[0]
-    assert "startDate" not in first and "endDate" not in first  # no date filter: everything
+    assert "startDate" in first and "endDate" in first  # 90-day window applied
     n = len(fake.search_params)
-    run_sync(authed)
-    assert "startDate" in fake.search_params[n]  # backfill done -> incremental window
+    run_sync(authed, full=True)
+    assert "startDate" not in fake.search_params[n]  # full backfill: no date filter
 
 
 def test_health_data_collected_and_not_refetched(authed, fake):
-    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
     s = run_sync(authed)
     assert s["last_sync"]["status"] == "ok"
     stored = authed.get("/api/providers/garmin").json()["stored"]
@@ -46,9 +46,11 @@ def test_health_data_collected_and_not_refetched(authed, fake):
     run_sync(authed)  # quick: newest stored data minus 1 day only
     assert fake.calls[summ] - before_s <= 2
     assert fake.calls[sleep] - before_d <= 3
-    # a full re-scan only fills gaps (+ refreshes the last 30 days), no old history refetch
+    # P1 full is the explicit history backfill: it walks all the way back to
+    # HISTORY_FLOOR, so the daily sleep fetches exceed the 90-day quick window.
+    before_full = fake.calls[sleep]
     run_sync(authed, full=True)
-    assert fake.calls[sleep] - before_d < 45
+    assert fake.calls[sleep] - before_full > 45
 
 
 def test_chunks_cover_28_days():
@@ -91,7 +93,6 @@ def test_rate_limit_gives_up():
 
 
 def test_diagnostics_has_structure_but_no_personal_values(authed, fake):
-    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
     run_sync(authed)
     assert authed.get("/api/diagnostics/shapes").status_code == 200
     text = authed.get("/api/diagnostics/shapes").text
@@ -111,7 +112,6 @@ def test_diagnostics_requires_login(client):
 
 
 def test_quick_vs_background_lookback(authed, fake):
-    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
     run_sync(authed, "background")  # first run = full history
     latest = max(i["start_time"] for i in authed.get("/api/activities").json()["items"])[:10]
     latest_d = date.fromisoformat(latest)
@@ -124,7 +124,6 @@ def test_quick_vs_background_lookback(authed, fake):
 
 
 def test_quick_refetches_fewer_health_days_than_background(authed, fake):
-    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
     run_sync(authed, "background")
     sleep = "/sleep-service/sleep/dailySleep"
     a = fake.calls[sleep]
@@ -137,7 +136,6 @@ def test_quick_refetches_fewer_health_days_than_background(authed, fake):
 
 
 def test_mode_validation(authed):
-    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
     assert authed.post("/api/sync?mode=nonsense").status_code == 400
 
 
@@ -153,8 +151,6 @@ def test_schedule_setting_and_validation(authed):
 
 def test_scheduler_runs_when_due_then_waits(authed, client):
     manager = client.app.state.sync_manager
-    assert manager.maybe_run_scheduled() is None  # no key configured
-    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
     first = manager.maybe_run_scheduled()
     assert first is not None and first.status == "ok"
     assert manager.maybe_run_scheduled() is None  # not due again for 6 h
@@ -168,7 +164,6 @@ def test_quick_sync_does_not_reset_schedule_timer(authed, client):
     from datetime import UTC, datetime, timedelta
 
     from app import db, schedule
-    authed.put("/api/providers/garmin", json={"api_key": API_KEY})
     run_sync(authed, "quick")
     conn = db.connect(client.app.state.settings.db_path)
     try:
